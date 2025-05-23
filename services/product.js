@@ -1,12 +1,9 @@
 import prisma from '../lib/prisma.js'
 import { z } from 'zod'
-
 import { validatedParamId, safeParseBindSchema } from '../lib/utils.js'
 
-// #region 建立驗證格式用函式
-// 建立商品資料的驗證用的schema物件
+// 驗證格式 schema
 const productSchema = {}
-// 條件的驗証用的schema
 productSchema.conditions = z.object({
   nameLike: z.string().optional(),
   brandIds: z.array(z.number()).optional(),
@@ -14,41 +11,32 @@ productSchema.conditions = z.object({
   priceGte: z.number().optional(),
   priceLte: z.number().optional(),
 })
-// 排序的驗証用的schema
 productSchema.sortBy = z.object({
   sort: z.enum(['id', 'name', 'price']),
   order: z.enum(['asc', 'desc']),
 })
-
-// 綁定驗證用的schema的檢查函式
 const productSchemaValidator = safeParseBindSchema(productSchema)
-// #endregion
 
+// 建立 where 條件
 const generateWhere = (conditions) => {
-  // 檢查從前端來的資料是否符合格式，注意要傳入與檢查schema同名的物件值，例如{ conditions: conditions }，前者為物件的key，會比對schema物件中的檢查格式，後者為要檢查物件的值
   productSchemaValidator({ conditions })
+  const where = { valid: true }
 
-  const where = {}
-  // 如果有傳入nameLike參數，就加入where物件
   if (conditions.nameLike) {
     where.name = { contains: conditions.nameLike }
   }
-
-  // 如果有傳入brandIds參數(陣列中有資料)，就加入where物件(brandsId in [1, 2, 3])
-  if (conditions.brandIds.length) {
-    where.brandId = { in: conditions.brandIds }
+  if (conditions.brandIds?.length) {
+    where.brand_id = { in: conditions.brandIds }
   }
-
-  // 如果有傳入categoryIds參數(陣列中有資料)，就加入where物件(categoryId in [1, 2, 3])
-  if (conditions.categoryIds.length) {
-    where.categoryId = { in: conditions.categoryIds }
+  if (conditions.categoryIds?.length) {
+    where.category_id = { in: conditions.categoryIds }
   }
-
+  if (conditions.subcategoryIds?.length) {
+    where.subcategory_id = { in: conditions.subcategoryIds }
+  }
   if (conditions.priceGte) {
     where.price = { gte: conditions.priceGte }
   }
-
-  // 如果已經有where.price物件，就加入where.price.lte物件
   if (conditions.priceLte) {
     where.price = where.price
       ? { ...where.price, lte: conditions.priceLte }
@@ -58,77 +46,125 @@ const generateWhere = (conditions) => {
   return where
 }
 
-// 取得商品總筆數
+// ✅ 商品總數
 export const getProductsCount = async (conditions = {}) => {
   const where = generateWhere(conditions)
-
-  // 回傳總筆數
   return await prisma.product.count({ where })
 }
 
-// 取得所有商品資料
+// ✅ 商品列表
 export const getProducts = async (
   page = 1,
-  perPage = 10,
+  perPage = 12,
   conditions = {},
-  sortBy
+  sortBy = { sort: 'id', order: 'desc' }
 ) => {
-  // 驗證參數是否為正整數
   validatedParamId(page)
   validatedParamId(perPage)
+  productSchemaValidator({ sortBy })
 
   const where = generateWhere(conditions)
 
-  console.log(where)
-
-  // 檢查從前端來的資料是否符合格式，注意要傳入與檢查schema同名的物件值，例如{ sortBy: sortBy }，前者為物件的key，會比對schema物件中的檢查格式，後者為要檢查物件的值
-  productSchemaValidator({ sortBy })
-
-  const orderBy = {
-    [sortBy.sort]: sortBy.order,
-  }
-
-  // 包含關聯資料
-  return await prisma.product.findMany({
+  // 【第 1 部分】先查詢產品清單
+  const products = await prisma.product.findMany({
     where,
-    orderBy,
+    orderBy: { [sortBy.sort]: sortBy.order },
     skip: (page - 1) * perPage,
     take: perPage,
     include: {
-      category: true,
       brand: true,
+      productCategory: true,
+      product_images: {
+        where: { is_primary: true },
+        select: { image: true },
+      },
     },
   })
+
+  // 【第 2 部分】查詢每個商品的平均評分與總筆數
+  const ratingResults = await prisma.productReview.groupBy({
+    by: ['productId'],
+    _avg: { rating: true },
+    _count: { rating: true },
+  })
+
+  // 【第 3 部分】把評分對應到產品
+  const ratingMap = new Map()
+  ratingResults.forEach((r) => {
+    ratingMap.set(r.productId, {
+      avg: Number(r._avg.rating?.toFixed(1)) || 0,
+      count: r._count.rating || 0,
+    })
+  })
+
+  // 【第 4 部分】把結果加進 products 陣列
+  products.forEach((p) => {
+    const rating = ratingMap.get(p.id) || { avg: 0, count: 0 }
+    p.rating = rating
+  })
+
+  return products
 }
 
-// 取得單筆商品資料
 export const getProductById = async (productId) => {
-  // 驗證參數是否為正整數
   validatedParamId(productId)
 
   const product = await prisma.product.findUnique({
-    where: {
-      id: productId,
-    },
+    where: { id: productId },
     include: {
-      category: true,
       brand: true,
+      productCategory: true,
+      product_images: {
+        orderBy: { is_primary: 'desc' },
+        select: { image: true, is_primary: true },
+      },
+      product_specifications: {
+        orderBy: { sort_order: 'asc' },
+        select: { title: true, value: true },
+      },
+      product_variants: true,
+      product_tag_map: {
+        include: {
+          productTag: true,
+        },
+      },
     },
   })
 
-  if (!product) {
-    throw new Error('資料不存在')
+  if (!product) throw new Error('商品不存在')
+
+  // 轉換 tag 結構
+  product.tags = product.product_tag_map.map((m) => m.productTag.name)
+  delete product.product_tag_map
+
+  // ✅ 查詢平均評分
+  const ratingResult = await prisma.productReview.aggregate({
+    where: { productId },
+    _avg: { rating: true },
+    _count: { rating: true },
+  })
+
+  product.rating = {
+    avg: Number(ratingResult._avg.rating?.toFixed(1)) || 0,
+    count: ratingResult._count.rating || 0,
   }
+
+  // ✅ 查詢收藏次數（favorites）
+  const favoriteCount = await prisma.productFavorite.count({
+    where: { product_id: productId },
+  })
+
+  product.favoriteCount = favoriteCount
 
   return product
 }
 
-// 取得所有品牌資料
+// ✅ 品牌
 export const getBrands = async () => {
   return await prisma.brand.findMany()
 }
 
-// 取得所有分類資料
-export const getCatetories = async () => {
-  return await prisma.category.findMany()
+// ✅ 分類
+export const getCategories = async () => {
+  return await prisma.productCategory.findMany()
 }

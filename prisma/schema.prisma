@@ -37,20 +37,26 @@ model Blog {
 }
 
 model Brand {
-  id       Int       @id @default(autoincrement())
-  name     String    @unique
-  img      String?
-  info     String    @db.Text
-  // 關聯: Brand:Product = 1:n 
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  // ❌ img 欄位資料庫沒有 → 註解掉
+  // img String?
+
+  // ❌ info 欄位資料庫沒有 → 註解掉
+  // info String? @db.Text
+
   products Product[]
 }
 
-model Category {
+model ProductCategory {
   id       Int       @id @default(autoincrement())
   name     String    @unique
-  parentId Int?      @map("parent_id")
+  // parentId Int?      @map("parent_id")
   // 關聯: Category:Product = 1:n 
   products Product[]
+
+  @@map("product_categories")
 }
 
 model Favorite {
@@ -91,21 +97,113 @@ model Profile {
 }
 
 model Product {
+  id             Int       @id @default(autoincrement())
+  name           String
+  description    String?   @db.Text // ✅ 對應資料庫
+  price          Decimal?  @db.Decimal(10, 0)
+  discount_price Decimal?  @db.Decimal(10, 0)
+  category_id    Int?
+  subcategory_id Int?
+  updated_at     DateTime?
+  brand_id       Int?
+  is_active      Boolean?
+  start_at       DateTime?
+  end_at         DateTime?
+  created_at     DateTime?
+  notice         String?   @db.Text
+  valid          Boolean   @default(true)
+  sn             String?   @unique
+
+  // ❌ photos 資料庫沒有 → 註解掉
+  // photos String? @db.Text
+
+  // ❌ stock 資料庫沒有 → 註解掉
+  // stock Int @default(0)
+
+  // ❌ info 資料庫沒有 → 註解掉
+  // info String? @db.Text
+
+  brand           Brand?           @relation(fields: [brand_id], references: [id])
+  productCategory ProductCategory? @relation(fields: [category_id], references: [id])
+
+  product_images         ProductImage[]
+  product_specifications ProductSpecification[]
+  product_variants       ProductVariant[]
+  product_tag_map        ProductTagMap[]
+  Favorite               Favorite[]
+  reviews                ProductReview[]
+  favorites              ProductFavorite[]
+}
+
+model ProductImage {
+  id         Int     @id @default(autoincrement())
+  image      String
+  is_primary Boolean @default(false)
+  product    Product @relation(fields: [productId], references: [id])
+  productId  Int     @map("product_id")
+
+  @@map("product_images")
+}
+
+model ProductSpecification {
+  id         Int     @id @default(autoincrement())
+  title      String
+  value      String
+  sort_order Int
+  product    Product @relation(fields: [productId], references: [id])
+  productId  Int     @map("product_id")
+
+  @@map("product_specifications")
+}
+
+model ProductVariant {
+  id               Int     @id @default(autoincrement())
+  variant_name     String
+  additional_price Float
+  stock_quantity   Int
+  product          Product @relation(fields: [productId], references: [id])
+  productId        Int     @map("product_id")
+
+  @@map("product_variants")
+}
+
+model ProductTag {
+  id   Int             @id @default(autoincrement())
+  name String
+  maps ProductTagMap[]
+
+  @@map("product_tags")
+}
+
+model ProductTagMap {
   id         Int        @id @default(autoincrement())
-  name       String
-  sn         String     @unique
-  photos     String?    @db.Text
-  stock      Int        @default(0)
-  price      Int        @default(0)
-  info       String     @db.Text
-  // 關聯: Brand:Product = 1:n 
-  brand      Brand      @relation(fields: [brandId], references: [id])
-  brandId    Int        @map("brand_id")
-  // 關聯: Category:Product = 1:n 
-  category   Category   @relation(fields: [categoryId], references: [id])
-  categoryId Int        @map("category_id")
-  // 關聯: User:Product = n:m 透過 Favorite
-  favorites  Favorite[]
+  product    Product    @relation(fields: [productId], references: [id])
+  productId  Int        @map("product_id")
+  productTag ProductTag @relation(fields: [tagId], references: [id])
+  tagId      Int        @map("tag_id")
+
+  @@map("product_tag_map")
+}
+
+model ProductReview {
+  id         Int      @id @default(autoincrement())
+  product    Product  @relation(fields: [productId], references: [id])
+  productId  Int      @map("product_id")
+  memberId   Int      @map("member_id")
+  rating     Int
+  comment    String?
+  created_at DateTime @default(now()) @map("created_at")
+
+  @@map("product_reviews")
+}
+
+model ProductFavorite {
+  id         Int     @id @default(autoincrement())
+  member_id  Int
+  product_id Int
+  product    Product @relation(fields: [product_id], references: [id])
+
+  @@map("product_favorites")
 }
 
 model member {
