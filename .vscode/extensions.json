@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "vscode-icons-team.vscode-icons",
+    "formulahendry.auto-complete-tag",
+    "ms-ceintl.vscode-language-pack-zh-hant",
+    "cweijan.vscode-mysql-client2",
+    "prisma.prisma"
+  ]
+}

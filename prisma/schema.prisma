@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// local dev with mysql
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// vercel deploy with postgresql
+// datasource db {
+//   provider  = "postgresql"
+//   url       = env("POSTGRES_PRISMA_URL") // uses connection pooling
+//   directUrl = env("POSTGRES_URL_NON_POOLING") // uses a direct connection
+// }
+
+/// 以下為資料表定義
+// https://www.prisma.io/docs/concepts/components/prisma-schema/data-model
+// 部落格CRUD範例
+model Blog {
+  id        Int      @id @default(autoincrement())
+  // DateTime 會轉換成資料庫的 timestamp，time zone 會自動轉換成 UTC
+  // 格式: 2021-01-01T00:00:00.000Z
+  createdAt DateTime @default(now()) @map("created_at")
+  // 這個欄位會在每次更新時"自動"更新時間，不需要手動更新
+  // DateTime 會轉換成資料庫的 timestamp，time zone 會自動轉換成 UTC
+  updatedAt DateTime @updatedAt @map("updated_at")
+  title     String   @db.VarChar(255)
+  content   String?  @db.Text
+  published Boolean  @default(false)
+
+  // 關聯: User:Blog = 1:n 
+  // author    User     @relation(fields: [authorId], references: [id])
+  // authorId  Int
+  @@map("blog")
+}
+
+model Brand {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  img      String?
+  info     String    @db.Text
+  // 關聯: Brand:Product = 1:n 
+  products Product[]
+}
+
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  parentId Int?      @map("parent_id")
+  // 關聯: Category:Product = 1:n 
+  products Product[]
+}
+
+model Favorite {
+  // 關聯: User:Favorite = 1:n 
+  member    member  @relation(fields: [memberId], references: [id])
+  memberId  Int     @map("member_id")
+  // 關聯: Product:Favorite = 1:n 
+  product   Product @relation(fields: [productId], references: [id])
+  productId Int     @map("product_id")
+
+  // 複合主鍵
+  @@id([memberId, productId])
+}
+
+model Otp {
+  id        Int      @id @default(autoincrement())
+  email     String
+  token     String
+  hash      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  expiredAt DateTime @map("expired_at")
+}
+
+model Profile {
+  id       Int       @id @default(autoincrement())
+  name     String?
+  bio      String?   @db.Text
+  avatar   String?
+  sex      String?
+  // 日期格式: 2021-01-01
+  birth    DateTime? @db.Date
+  phone    String?
+  postcode String?
+  address  String?
+  // 1:1 關聯
+  member   member    @relation(fields: [memberId], references: [id])
+  memberId Int       @unique @map("member_id")
+}
+
+model Product {
+  id         Int        @id @default(autoincrement())
+  name       String
+  sn         String     @unique
+  photos     String?    @db.Text
+  stock      Int        @default(0)
+  price      Int        @default(0)
+  info       String     @db.Text
+  // 關聯: Brand:Product = 1:n 
+  brand      Brand      @relation(fields: [brandId], references: [id])
+  brandId    Int        @map("brand_id")
+  // 關聯: Category:Product = 1:n 
+  category   Category   @relation(fields: [categoryId], references: [id])
+  categoryId Int        @map("category_id")
+  // 關聯: User:Product = n:m 透過 Favorite
+  favorites  Favorite[]
+}
+
+model member {
+  id              Int        @id @default(autoincrement())
+  username        String     @unique
+  password        String
+  email           String     @unique
+  // 關聯 User:Profile = 1:1 
+  profile         Profile?
+  emailValidated  Boolean    @default(false) @map("email_validated")
+  googleUid       String?    @unique @map("google_uid")
+  lineUid         String?    @unique @map("line_uid")
+  lineAccessToken String?    @map("line_access_token") @db.Text
+  // 關聯: User:Product = n:m 透過 Favorite
+  favorites       Favorite[]
+}
