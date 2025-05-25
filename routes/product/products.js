@@ -1,4 +1,6 @@
 import express from 'express'
+import tryAuth from '../../middlewares/tryAuth.js'
+import favoriteRouter from './favorite.js'
 const router = express.Router()
 
 // 導入服務層的函式
@@ -15,7 +17,9 @@ import { successResponse, errorResponse } from '../../lib/utils.js'
 
 // 商品列表 (支援分頁、篩選、排序)
 // /api/products
-router.get('/', async (req, res) => {
+router.get('/', tryAuth, async (req, res) => {
+  const memberId = req.member?.id || null
+
   const type = req.query.type || 'all'
   const page = Number(req.query.page) || 1
   const perPage = Number(req.query.perpage) || 10
@@ -49,7 +53,13 @@ router.get('/', async (req, res) => {
   const sortBy = { sort, order }
 
   try {
-    const products = await getProducts(page, perPage, conditions, sortBy)
+    const products = await getProducts(
+      page,
+      perPage,
+      conditions,
+      sortBy,
+      memberId
+    )
     const productCount = await getProductsCount(conditions)
 
     let data = {
@@ -110,5 +120,7 @@ router.get('/:productId', async (req, res) => {
     errorResponse(res, error)
   }
 })
+
+router.use('/favorite', favoriteRouter)
 
 export default router

@@ -12,7 +12,16 @@ productSchema.conditions = z.object({
   priceLte: z.number().optional(),
 })
 productSchema.sortBy = z.object({
-  sort: z.enum(['id', 'name', 'price']),
+  sort: z.enum([
+    'id',
+    'name',
+    'price',
+    'created_at',
+    'updated_at',
+    'review_count',
+    'avg_rating',
+    'favorite_count',
+  ]),
   order: z.enum(['asc', 'desc']),
 })
 const productSchemaValidator = safeParseBindSchema(productSchema)
@@ -57,7 +66,8 @@ export const getProducts = async (
   page = 1,
   perPage = 12,
   conditions = {},
-  sortBy = { sort: 'id', order: 'desc' }
+  sortBy = { sort: 'id', order: 'desc' },
+  memberId = null
 ) => {
   validatedParamId(page)
   validatedParamId(perPage)
@@ -66,20 +76,44 @@ export const getProducts = async (
   const where = generateWhere(conditions)
 
   // 【第 1 部分】先查詢產品清單
-  const products = await prisma.product.findMany({
-    where,
-    orderBy: { [sortBy.sort]: sortBy.order },
-    skip: (page - 1) * perPage,
-    take: perPage,
-    include: {
-      brand: true,
-      productCategory: true,
-      product_images: {
-        where: { is_primary: true },
-        select: { image: true },
+  let products = []
+
+  const prismaSortableFields = [
+    'id',
+    'name',
+    'price',
+    'created_at',
+    'updated_at',
+  ]
+
+  if (prismaSortableFields.includes(sortBy.sort)) {
+    products = await prisma.product.findMany({
+      where,
+      orderBy: { [sortBy.sort]: sortBy.order },
+      skip: (page - 1) * perPage,
+      take: perPage,
+      include: {
+        brand: true,
+        productCategory: true,
+        product_images: {
+          where: { is_primary: true },
+          select: { image: true },
+        },
       },
-    },
-  })
+    })
+  } else {
+    products = await prisma.product.findMany({
+      where,
+      include: {
+        brand: true,
+        productCategory: true,
+        product_images: {
+          where: { is_primary: true },
+          select: { image: true },
+        },
+      },
+    })
+  }
 
   // 【第 2 部分】查詢每個商品的平均評分與總筆數
   const ratingResults = await prisma.productReview.groupBy({
@@ -98,10 +132,66 @@ export const getProducts = async (
   })
 
   // 【第 4 部分】把結果加進 products 陣列
+
+  if (memberId) {
+    const memberFavorites = await prisma.productFavorite.findMany({
+      where: { member_id: memberId },
+      select: { product_id: true },
+    })
+    const favoriteIds = memberFavorites.map((f) => f.product_id)
+
+    products.forEach((p) => {
+      p.isFavorite = favoriteIds.includes(p.id)
+    })
+  } else {
+    products.forEach((p) => {
+      p.isFavorite = false
+    })
+  }
+
   products.forEach((p) => {
     const rating = ratingMap.get(p.id) || { avg: 0, count: 0 }
     p.rating = rating
   })
+
+  const favoriteCounts = await prisma.productFavorite.groupBy({
+    by: ['product_id'],
+    _count: { product_id: true },
+  })
+
+  const favoriteMap = new Map()
+  favoriteCounts.forEach((f) => {
+    favoriteMap.set(f.product_id, f._count.product_id || 0)
+  })
+
+  products.forEach((p) => {
+    p.favoriteCount = favoriteMap.get(p.id) || 0
+  })
+
+  if (!prismaSortableFields.includes(sortBy.sort)) {
+    if (sortBy.sort === 'review_count') {
+      products.sort((a, b) =>
+        sortBy.order === 'asc'
+          ? a.rating.count - b.rating.count
+          : b.rating.count - a.rating.count
+      )
+    } else if (sortBy.sort === 'avg_rating') {
+      products.sort((a, b) =>
+        sortBy.order === 'asc'
+          ? a.rating.avg - b.rating.avg
+          : b.rating.avg - a.rating.avg
+      )
+    } else if (sortBy.sort === 'favorite_count') {
+      products.sort((a, b) =>
+        sortBy.order === 'asc'
+          ? a.favoriteCount - b.favoriteCount
+          : b.favoriteCount - a.favoriteCount
+      )
+    }
+
+    // JS 排序後做 slice 分頁
+    products = products.slice((page - 1) * perPage, page * perPage)
+  }
 
   return products
 }
@@ -114,6 +204,7 @@ export const getProductById = async (productId) => {
     include: {
       brand: true,
       productCategory: true,
+      subcategory: true,
       product_images: {
         orderBy: { is_primary: 'desc' },
         select: { image: true, is_primary: true },
@@ -122,7 +213,6 @@ export const getProductById = async (productId) => {
         orderBy: { sort_order: 'asc' },
         select: { title: true, value: true },
       },
-      product_variants: true,
       product_tag_map: {
         include: {
           productTag: true,
@@ -133,28 +223,84 @@ export const getProductById = async (productId) => {
 
   if (!product) throw new Error('商品不存在')
 
-  // 轉換 tag 結構
+  // ✅ 整理 tags
   product.tags = product.product_tag_map.map((m) => m.productTag.name)
   delete product.product_tag_map
 
-  // ✅ 查詢平均評分
+  // ✅ 查詢評價
   const ratingResult = await prisma.productReview.aggregate({
     where: { productId },
     _avg: { rating: true },
     _count: { rating: true },
   })
-
   product.rating = {
     avg: Number(ratingResult._avg.rating?.toFixed(1)) || 0,
     count: ratingResult._count.rating || 0,
   }
 
-  // ✅ 查詢收藏次數（favorites）
+  const reviews = await prisma.productReview.findMany({
+    where: { productId },
+    orderBy: { created_at: 'desc' },
+    take: 5, // 可依需求設定顯示幾則
+    select: {
+      rating: true,
+      comment: true,
+      created_at: true,
+    },
+  })
+  product.reviews = reviews
+
+  // ✅ 查詢收藏次數
   const favoriteCount = await prisma.productFavorite.count({
     where: { product_id: productId },
   })
-
   product.favoriteCount = favoriteCount
+
+  // ✅ 查詢所有變體組合與選項
+  const variantCombinations = await prisma.productVariantCombination.findMany({
+    where: { productId },
+    include: {
+      options: {
+        include: {
+          option: {
+            include: {
+              type: true,
+            },
+          },
+        },
+      },
+    },
+  })
+
+  // ✅ 整理變體類型與選項
+  const variantMap = new Map()
+  variantCombinations.forEach((comb) => {
+    comb.options.forEach(({ option }) => {
+      const typeId = option.type.id
+      if (!variantMap.has(typeId)) {
+        variantMap.set(typeId, {
+          id: typeId,
+          name: option.type.name,
+          options: new Map(),
+        })
+      }
+      variantMap.get(typeId).options.set(option.id, option.name)
+    })
+  })
+
+  product.variantTypes = Array.from(variantMap.values()).map((v) => ({
+    id: v.id,
+    name: v.name,
+    options: Array.from(v.options).map(([id, name]) => ({ id, name })),
+  }))
+
+  product.variantCombinations = variantCombinations.map((comb) => ({
+    id: comb.id,
+    sku: comb.sku,
+    price: comb.price,
+    stock: comb.stock,
+    optionIds: comb.options.map((o) => o.optionId),
+  }))
 
   return product
 }
