@@ -56,6 +56,7 @@ model ProductCategory {
   // 關聯: Category:Product = 1:n 
   products           Product[]
   ProductSubcategory ProductSubcategory[]
+  CategoryCouponMap  CategoryCouponMap[]
 
   @@map("product_categories")
 }
@@ -134,7 +135,8 @@ model ProductSubcategory {
   categoryId Int?             @map("category_id")
   category   ProductCategory? @relation(fields: [categoryId], references: [id])
 
-  products Product[]
+  products             Product[]
+  SubcategoryCouponMap SubcategoryCouponMap[]
 
   @@map("product_subcategories")
 }
@@ -254,4 +256,85 @@ model member {
   lineAccessToken String?    @map("line_access_token") @db.Text
   // 關聯: User:Product = n:m 透過 Favorite
   favorites       Favorite[]
+}
+
+model Coupon {
+  id            Int            @id @default(autoincrement())
+  code          String?        @db.VarChar(255)
+  title         String?        @db.VarChar(255)
+  description   String?
+  discountType  DiscountType?  @map("discount_type")
+  discountValue Decimal?       @map("discount_value") @db.Decimal(10, 2)
+  minPurchase   Decimal?       @map("min_purchase") @db.Decimal(10, 2)
+  startAt       DateTime?      @map("start_at")
+  endAt         DateTime?      @map("end_at")
+  enabled       Boolean?
+  images        CouponImage[]  @relation("CouponImages")
+  memberCoupons MemberCoupon[]
+
+  vipLevelId           Int?                   @map("vip_level_id")
+  vipLevel             VipLevel?              @relation(fields: [vipLevelId], references: [id])
+  categoryCouponMap    CategoryCouponMap[]
+  subcategoryCouponMap SubcategoryCouponMap[]
+  
+
+  @@map("coupons")
+}
+
+model CouponImage {
+  id       Int     @id @default(autoincrement())
+  couponId Int?    @map("coupon_id")
+  image    String? @db.VarChar(255)
+  coupon   Coupon? @relation(fields: [couponId], references: [id], name: "CouponImages")
+
+  @@map("coupon_images")
+}
+
+model MemberCoupon {
+  id         Int       @id @default(autoincrement())
+  memberId   Int?      @map("member_id")
+  couponId   Int?      @map("coupon_id")
+  usedAt     DateTime? @map("used_at")
+  acquiredAt DateTime? @map("acquired_at")
+  source     String?   @db.VarChar(255)
+  coupon     Coupon?   @relation(fields: [couponId], references: [id])
+
+  @@map("member_coupons")
+}
+
+// 需與製作會員的組員討論
+model VipLevel {
+  id             Int      @id @default(autoincrement())
+  name           String?  @db.VarChar(255)
+  requiredPoints Int?     @map("required_points")
+  Coupon         Coupon[]
+
+  @@map("vip_levels")
+}
+
+enum DiscountType {
+  percentage
+  fixed
+}
+
+model CategoryCouponMap {
+  id         Int  @id @default(autoincrement())
+  couponId   Int? @map("coupon_id")
+  categoryId Int? @map("category_id")
+
+  coupon   Coupon?          @relation(fields: [couponId], references: [id])
+  category ProductCategory? @relation(fields: [categoryId], references: [id])
+
+  @@map("category_coupon_map")
+}
+
+model SubcategoryCouponMap {
+  id            Int  @id @default(autoincrement())
+  couponId      Int? @map("coupon_id")
+  subcategoryId Int? @map("subcategory_id")
+
+  coupon      Coupon?             @relation(fields: [couponId], references: [id])
+  subcategory ProductSubcategory? @relation(fields: [subcategoryId], references: [id])
+
+  @@map("subcategory_coupon_map")
 }
