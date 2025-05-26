@@ -2,9 +2,7 @@ import db from '../config/mysql.js'
 
 export const createSitter = async (req, res) => {
   try {
-    const memberId = req.member.id // 正式環境使用這行
-    // const memberId = 6 // 測試階段手動指定
-
+    const memberId = req.member.id
     const { name, area, service_time, experience, introduction, price } =
       req.body
 
@@ -22,7 +20,7 @@ export const createSitter = async (req, res) => {
         .json({ status: 'error', message: '欄位未填寫完整' })
     }
 
-    // 🔒 檢查是否已有保母
+    // 🔒 每個會員只能新增一位保母
     const [existing] = await db.query(
       'SELECT id FROM sitters WHERE member_id = ?',
       [memberId]
@@ -33,14 +31,13 @@ export const createSitter = async (req, res) => {
         .json({ status: 'error', message: '每位會員只能新增一位保母' })
     }
 
-    // 📷 圖片處理
+    // 📷 處理圖片上傳
     const avatar = req.files?.avatar?.[0]?.filename || null
     const avatar_url = avatar ? `/sitter/${avatar}` : null
-
     const gallery =
       req.files?.gallery?.map((f) => `/sitter/${f.filename}`) || []
 
-    // ✅ 寫入 sitters 表
+    // ✅ 寫入 sitters 資料表
     const insertSql = `
       INSERT INTO sitters 
         (member_id, name, area, service_time, experience, introduction, price, avatar_url)
@@ -56,11 +53,10 @@ export const createSitter = async (req, res) => {
       price,
       avatar_url,
     ]
-
     const [result] = await db.query(insertSql, values)
     const sitterId = result.insertId
 
-    // ✅ 寫入 sitter_gallery 表
+    // ✅ 寫入 sitter_gallery
     for (const imageUrl of gallery) {
       await db.query(
         'INSERT INTO sitter_gallery (sitter_id, image_url) VALUES (?, ?)',
@@ -68,13 +64,16 @@ export const createSitter = async (req, res) => {
       )
     }
 
-    // ✅ 回應
+    // ✅ 查詢剛新增的 sitter 資料回傳
+    const [sitterRows] = await db.query(
+      'SELECT id, name, area, service_time, experience, introduction, price, avatar_url FROM sitters WHERE id = ?',
+      [sitterId]
+    )
+
     res.status(201).json({
       status: 'success',
-      message: '保母新增成功',
-      sitter_id: sitterId,
-      avatar_url,
-      gallery,
+      sitter: sitterRows[0], // ✅ 回傳完整 sitter 給前端
+      gallery, // 如需使用可保留
     })
   } catch (err) {
     console.error('新增保母失敗:', err)
