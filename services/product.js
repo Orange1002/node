@@ -196,7 +196,7 @@ export const getProducts = async (
   return products
 }
 
-export const getProductById = async (productId) => {
+export const getProductById = async (productId, memberId = null) => {
   validatedParamId(productId)
 
   const product = await prisma.product.findUnique({
@@ -222,6 +222,19 @@ export const getProductById = async (productId) => {
   })
 
   if (!product) throw new Error('商品不存在')
+
+  // ✅ 確認是否已被該會員收藏
+  if (memberId) {
+    const favorite = await prisma.productFavorite.findFirst({
+      where: {
+        member_id: memberId,
+        product_id: productId,
+      },
+    })
+    product.isFavorite = !!favorite
+  } else {
+    product.isFavorite = false
+  }
 
   // ✅ 整理 tags
   product.tags = product.product_tag_map.map((m) => m.productTag.name)

@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
 export default function tryAuth(req, res, next) {
-  const token = req.cookies.token
+  const token = req.cookies.accessToken
 
   if (!token) return next()
 

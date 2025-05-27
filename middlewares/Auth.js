@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
 export default function authenticateMember(req, res, next) {
-  const token = req.cookies.token
+  const token = req.cookies.accessToken
   if (!token) return res.status(401).json({ error: '未登入' })
 
   try {

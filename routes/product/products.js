@@ -110,11 +110,12 @@ router.get('/categories', async (req, res) => {
 })
 
 // 商品詳情 /api/products/:productId
-router.get('/:productId', async (req, res) => {
+router.get('/:productId', tryAuth, async (req, res) => {
   const productId = Number(req.params.productId)
+  const memberId = req.member?.id || null
 
   try {
-    const product = await getProductById(productId)
+    const product = await getProductById(productId, memberId)
     successResponse(res, { product })
   } catch (error) {
     errorResponse(res, error)
