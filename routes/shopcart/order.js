@@ -100,11 +100,12 @@ export const createOrder = async (req, res) => {
       }
 
       await db.execute(
-        `INSERT INTO order_services (order_id, sitter_id, dogs_id, start_time, end_time, price)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO order_services (order_id, sitter_id, image, dogs_id, start_time, end_time, price)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           orderId,
           service.sitter_id,
+          service.image,
           service.pet_id,
           service.start_time,
           service.end_time,
