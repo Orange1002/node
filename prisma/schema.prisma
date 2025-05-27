@@ -50,11 +50,13 @@ model Brand {
 }
 
 model ProductCategory {
-  id       Int       @id @default(autoincrement())
-  name     String    @unique
+  id                 Int                  @id @default(autoincrement())
+  name               String               @unique
   // parentId Int?      @map("parent_id")
   // 關聯: Category:Product = 1:n 
-  products Product[]
+  products           Product[]
+  ProductSubcategory ProductSubcategory[]
+  CategoryCouponMap  CategoryCouponMap[]
 
   @@map("product_categories")
 }
@@ -103,7 +105,7 @@ model Product {
   price          Decimal?  @db.Decimal(10, 0)
   discount_price Decimal?  @db.Decimal(10, 0)
   category_id    Int?
-  subcategory_id Int?
+  subcategory_id Int?      @map("subcategory_id")
   updated_at     DateTime?
   brand_id       Int?
   is_active      Boolean?
@@ -114,25 +116,29 @@ model Product {
   valid          Boolean   @default(true)
   sn             String?   @unique
 
-  // ❌ photos 資料庫沒有 → 註解掉
-  // photos String? @db.Text
+  brand           Brand?              @relation(fields: [brand_id], references: [id])
+  productCategory ProductCategory?    @relation(fields: [category_id], references: [id])
+  subcategory     ProductSubcategory? @relation(fields: [subcategory_id], references: [id])
 
-  // ❌ stock 資料庫沒有 → 註解掉
-  // stock Int @default(0)
+  product_images            ProductImage[]
+  product_specifications    ProductSpecification[]
+  product_tag_map           ProductTagMap[]
+  Favorite                  Favorite[]
+  reviews                   ProductReview[]
+  favorites                 ProductFavorite[]
+  ProductVariantCombination ProductVariantCombination[]
+}
 
-  // ❌ info 資料庫沒有 → 註解掉
-  // info String? @db.Text
+model ProductSubcategory {
+  id         Int              @id @default(autoincrement())
+  name       String           @db.VarChar(255)
+  categoryId Int?             @map("category_id")
+  category   ProductCategory? @relation(fields: [categoryId], references: [id])
 
-  brand           Brand?           @relation(fields: [brand_id], references: [id])
-  productCategory ProductCategory? @relation(fields: [category_id], references: [id])
+  products             Product[]
+  SubcategoryCouponMap SubcategoryCouponMap[]
 
-  product_images         ProductImage[]
-  product_specifications ProductSpecification[]
-  product_variants       ProductVariant[]
-  product_tag_map        ProductTagMap[]
-  Favorite               Favorite[]
-  reviews                ProductReview[]
-  favorites              ProductFavorite[]
+  @@map("product_subcategories")
 }
 
 model ProductImage {
@@ -154,17 +160,6 @@ model ProductSpecification {
   productId  Int     @map("product_id")
 
   @@map("product_specifications")
-}
-
-model ProductVariant {
-  id               Int     @id @default(autoincrement())
-  variant_name     String
-  additional_price Float
-  stock_quantity   Int
-  product          Product @relation(fields: [productId], references: [id])
-  productId        Int     @map("product_id")
-
-  @@map("product_variants")
 }
 
 model ProductTag {
@@ -206,6 +201,48 @@ model ProductFavorite {
   @@map("product_favorites")
 }
 
+model ProductVariantType {
+  id      Int                    @id @default(autoincrement())
+  name    String                 @db.VarChar(50)
+  options ProductVariantOption[] // 一對多關聯
+
+  @@map("product_variant_types")
+}
+
+model ProductVariantOption {
+  id                 Int                               @id @default(autoincrement())
+  name               String                            @db.VarChar(50)
+  typeId             Int                               @map("type_id")
+  type               ProductVariantType                @relation(fields: [typeId], references: [id])
+  combinationOptions ProductVariantCombinationOption[]
+
+  @@map("product_variant_options")
+}
+
+model ProductVariantCombination {
+  id        Int      @id @default(autoincrement())
+  productId Int      @map("product_id")
+  sku       String?  @db.VarChar(50)
+  price     Decimal? @db.Decimal(10, 0)
+  stock     Int?
+
+  product Product                           @relation(fields: [productId], references: [id])
+  options ProductVariantCombinationOption[]
+
+  @@map("product_variant_combinations")
+}
+
+model ProductVariantCombinationOption {
+  combinationId Int @map("combination_id")
+  optionId      Int @map("option_id")
+
+  combination ProductVariantCombination @relation(fields: [combinationId], references: [id])
+  option      ProductVariantOption      @relation(fields: [optionId], references: [id])
+
+  @@id([combinationId, optionId])
+  @@map("product_variant_combination_options")
+}
+
 model member {
   id              Int        @id @default(autoincrement())
   username        String     @unique
@@ -219,4 +256,85 @@ model member {
   lineAccessToken String?    @map("line_access_token") @db.Text
   // 關聯: User:Product = n:m 透過 Favorite
   favorites       Favorite[]
+}
+
+model Coupon {
+  id            Int            @id @default(autoincrement())
+  code          String?        @db.VarChar(255)
+  title         String?        @db.VarChar(255)
+  description   String?
+  discountType  DiscountType?  @map("discount_type")
+  discountValue Decimal?       @map("discount_value") @db.Decimal(10, 2)
+  minPurchase   Decimal?       @map("min_purchase") @db.Decimal(10, 2)
+  startAt       DateTime?      @map("start_at")
+  endAt         DateTime?      @map("end_at")
+  enabled       Boolean?
+  images        CouponImage[]  @relation("CouponImages")
+  memberCoupons MemberCoupon[]
+
+  vipLevelId           Int?                   @map("vip_level_id")
+  vipLevel             VipLevel?              @relation(fields: [vipLevelId], references: [id])
+  categoryCouponMap    CategoryCouponMap[]
+  subcategoryCouponMap SubcategoryCouponMap[]
+  
+
+  @@map("coupons")
+}
+
+model CouponImage {
+  id       Int     @id @default(autoincrement())
+  couponId Int?    @map("coupon_id")
+  image    String? @db.VarChar(255)
+  coupon   Coupon? @relation(fields: [couponId], references: [id], name: "CouponImages")
+
+  @@map("coupon_images")
+}
+
+model MemberCoupon {
+  id         Int       @id @default(autoincrement())
+  memberId   Int?      @map("member_id")
+  couponId   Int?      @map("coupon_id")
+  usedAt     DateTime? @map("used_at")
+  acquiredAt DateTime? @map("acquired_at")
+  source     String?   @db.VarChar(255)
+  coupon     Coupon?   @relation(fields: [couponId], references: [id])
+
+  @@map("member_coupons")
+}
+
+// 需與製作會員的組員討論
+model VipLevel {
+  id             Int      @id @default(autoincrement())
+  name           String?  @db.VarChar(255)
+  requiredPoints Int?     @map("required_points")
+  Coupon         Coupon[]
+
+  @@map("vip_levels")
+}
+
+enum DiscountType {
+  percentage
+  fixed
+}
+
+model CategoryCouponMap {
+  id         Int  @id @default(autoincrement())
+  couponId   Int? @map("coupon_id")
+  categoryId Int? @map("category_id")
+
+  coupon   Coupon?          @relation(fields: [couponId], references: [id])
+  category ProductCategory? @relation(fields: [categoryId], references: [id])
+
+  @@map("category_coupon_map")
+}
+
+model SubcategoryCouponMap {
+  id            Int  @id @default(autoincrement())
+  couponId      Int? @map("coupon_id")
+  subcategoryId Int? @map("subcategory_id")
+
+  coupon      Coupon?             @relation(fields: [couponId], references: [id])
+  subcategory ProductSubcategory? @relation(fields: [subcategoryId], references: [id])
+
+  @@map("subcategory_coupon_map")
 }
