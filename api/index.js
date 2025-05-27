@@ -26,7 +26,9 @@ const server = createServer(app)
 const messages = []
 
 // CORS 白名單設定
-const whiteList = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')
+const whiteList = (process.env.FRONTEND_URL || 'http://localhost:3000').split(
+  ','
+)
 
 // Socket.IO 初始化
 const io = new SocketIO(server, {
@@ -42,83 +44,88 @@ function verifyToken(token) {
   try {
     return jwt.verify(token, process.env.JWT_SECRET)
   } catch (err) {
-    console.error('JWT 驗證失敗:', err.message); // 打印具體的 JWT 錯誤訊息
+    console.error('JWT 驗證失敗:', err.message) // 打印具體的 JWT 錯誤訊息
     return null
   }
 }
 
-// Socket.IO 認證中介軟體 (使用方法二：直接讀取 httpOnly cookie)
+// Socket.IO 認證中介軟體 (在每個 Socket.IO 連線握手前執行)
 io.use((socket, next) => {
-  const cookiesHeader = socket.request.headers.cookie;
+  const cookiesHeader = socket.request.headers.cookie
 
   if (!cookiesHeader) {
-    console.warn('Socket.IO 連線請求中缺少 Cookie 標頭');
-    return next(new Error('缺少登入憑證 (Cookie 不存在)。請先登入。'));
+    console.warn('Socket.IO 連線請求中缺少 Cookie 標頭')
+    return next(new Error('缺少登入憑證 (Cookie 不存在)。請先登入。'))
   }
 
-  const parsedCookies = cookie.parse(cookiesHeader);
-  const token = parsedCookies.accessToken;
+  const parsedCookies = cookie.parse(cookiesHeader)
+  const token = parsedCookies.accessToken
 
-  console.log('從 Socket.IO 握手請求的 Cookie 中解析出的 token:', token ? '已取得' : '未取得');
+  console.log(
+    '從 Socket.IO 握手請求的 Cookie 中解析出的 token:',
+    token ? '已取得' : '未取得'
+  )
 
   if (!token) {
-    return next(new Error('JWT 驗證失敗：Cookie 中無 accessToken。請先登入。'));
+    return next(new Error('JWT 驗證失敗：Cookie 中無 accessToken。請先登入。'))
   }
 
-  const member = verifyToken(token);
+  const member = verifyToken(token)
   if (!member) {
-    return next(new Error('JWT 驗證失敗：Token 無效或過期。請重新登入。'));
-  }
+    return next(new Error('JWT 驗證失敗：Token 無效或過期。請重新登入。'))
+  } // 驗證成功的會員資料，確認其包含 id 和 name 欄位
 
-  console.log('驗證成功的會員資料:', member);
-  socket.member = member; // 將會員資料附加到 socket 物件
-  next();
-});
+  console.log('JWT 驗證成功的會員資料:', member) // 將會員資料附加到 socket 物件，以便後續的連線處理邏輯使用
+  socket.member = member
+  next() // 繼續建立 Socket.IO 連線
+})
 
 // Socket.IO 連線與訊息處理邏輯
+// 這個監聽器必須在 io.use 中介軟體之外，才能在每次成功連線時觸發
 io.on('connection', (socket) => {
-  console.log(`Socket connected: ${socket.id}`);
-  console.log(`Connected member: ${socket.member.account}`); // 顯示驗證成功的會員帳號
+  console.log(`Socket connected: ${socket.id}`) // 確保 socket.member 存在且包含 name 屬性
+  console.log(`Connected member name: ${socket.member?.name || '未知名稱'}`) // 連線時，發送當前所有歷史訊息給新連線的客戶端 // 也可以考慮只發送最近的 N 條訊息
 
-  // 連線時，發送當前所有歷史訊息給新連線的客戶端
-  // 也可以考慮只發送最近的 N 條訊息
   socket.emit('chat message', {
     id: 'system-welcome', // 系統訊息的 ID
     user: 'System', // 系統用戶
-    text: `歡迎 ${socket.member.account} 加入聊天室！`,
-    createdAt: new Date().toISOString(),
-  });
-  messages.forEach(msg => {
-      socket.emit('chat message', msg);
-  });
+    text: `歡迎 ${socket.member?.name || '新朋友'} 加入聊天室！`, // 使用 ?. 確保安全訪問
+    createdAt: new Date().toISOString(), // 系統訊息不需要 userId，或者可以給一個特定的系統 userId
+    userId: 'system',
+  })
+  messages.forEach((msg) => {
+    socket.emit('chat message', msg)
+  }) // 監聽客戶端發送的 'chat message' 事件
 
-  // 監聽客戶端發送的 'chat message' 事件
   socket.on('chat message', (msg) => {
-    if (!msg || !msg.text || typeof msg.text !== 'string' || msg.text.trim() === '') {
-      console.warn(`無效訊息來自 ${socket.id}:`, msg);
-      socket.emit('error message', '訊息內容不能為空！');
-      return;
+    if (
+      !msg ||
+      !msg.text ||
+      typeof msg.text !== 'string' ||
+      msg.text.trim() === ''
+    ) {
+      console.warn(`無效訊息來自 ${socket.id}:`, msg)
+      socket.emit('error message', '訊息內容不能為空！') // 發送錯誤訊息給發送者
+      return
     }
 
     const newMsg = {
-      id: Date.now(), // 給予一個獨特的 ID
-      user: socket.member.account, // 使用驗證後的會員帳號作為用戶名
+      id: Date.now(),
+      user: socket.member?.name || '匿名用戶', // 使用 member.name 作為發送者名稱
+      userId: socket.member?.id || null, // <-- **新增：將發送者的 ID 加入訊息物件**
       text: msg.text.trim(),
       createdAt: new Date().toISOString(),
-    };
+    }
+    messages.push(newMsg) // 將訊息儲存到伺服器端的陣列 // 將新訊息廣播給所有連線的客戶端
 
-    messages.push(newMsg); // 將訊息儲存到伺服器端的陣列
+    io.emit('chat message', newMsg)
+    console.log(`新訊息來自 ${newMsg.user}: ${newMsg.text}`)
+  }) // 監聽客戶端斷開連線事件
 
-    // 將新訊息廣播給所有連線的客戶端
-    io.emit('chat message', newMsg);
-    console.log(`新訊息來自 ${newMsg.user}: ${newMsg.text}`);
-  });
-
-  // 監聽客戶端斷開連線事件
   socket.on('disconnect', () => {
-    console.log(`Socket disconnected: ${socket.id}`);
-  });
-});
+    console.log(`Socket disconnected: ${socket.id}`)
+  })
+})
 
 // Express 中介軟體設定
 app.use(
@@ -128,7 +135,7 @@ app.use(
       if (whiteList.indexOf(origin) !== -1) {
         callback(null, true)
       } else {
-        console.error(`CORS: Origin ${origin} is not allowed`);
+        console.error(`CORS: Origin ${origin} is not allowed`)
         callback(new Error('Not allowed by CORS'))
       }
     },
@@ -148,10 +155,13 @@ let sessionStore = null
 if (serverConfig.sessionStoreType === 'redis') {
   const redisClient = createClient({ url: process.env.REDIS_URL })
   redisClient.connect().catch(console.error)
-  sessionStore = new RedisStore({ client: redisClient, prefix: 'express-vercel:' })
+  sessionStore = new RedisStore({
+    client: redisClient,
+    prefix: 'express-vercel:',
+  })
 } else {
   const FileStore = sessionFileStore(session)
-  sessionStore = new FileStore({ logFn: () => { } })
+  sessionStore = new FileStore({ logFn: () => {} })
 }
 
 const isDev = process.env.NODE_ENV === 'development'
@@ -159,12 +169,12 @@ const isDev = process.env.NODE_ENV === 'development'
 const options = isDev
   ? { maxAge: 30 * 86400000 }
   : {
-    domain: serverConfig.domain,
-    maxAge: 30 * 86400000,
-    httpOnly: true,
-    secure: true,
-    sameSite: 'none',
-  }
+      domain: serverConfig.domain,
+      maxAge: 30 * 86400000,
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+    }
 
 if (!isDev) app.set('trust proxy', 1)
 
@@ -192,6 +202,7 @@ app.get('/', (req, res) => res.send('Express server is running.'))
 // 自動讀取 routes 資料夾並掛載路由
 const apiPath = '/api'
 const routePath = path.join(process.cwd(), 'routes')
+// 使用 await fs.promises.readdir 確保非同步操作完成
 const topLevelFilenames = await fs.promises.readdir(routePath)
 
 for (const filename of topLevelFilenames) {
@@ -199,10 +210,11 @@ for (const filename of topLevelFilenames) {
   const stats = fs.statSync(fullPath)
 
   if (stats.isFile()) {
+    // 使用 await import 確保模組載入完成
     const item = await import(pathToFileURL(fullPath))
     const slug = filename.split('.')[0]
     app.use(`${apiPath}/${slug === 'index' ? '' : slug}`, item.default)
-    console.log(`掛載路由: ${apiPath}/${slug === 'index' ? '' : slug}`);
+    console.log(`掛載路由: ${apiPath}/${slug === 'index' ? '' : slug}`)
   } else if (stats.isDirectory()) {
     const subFilenames = await fs.promises.readdir(fullPath)
     for (const subFilename of subFilenames) {
@@ -211,8 +223,15 @@ for (const filename of topLevelFilenames) {
       if (subStats.isFile()) {
         const item = await import(pathToFileURL(subFullPath))
         const subSlug = subFilename.split('.')[0]
-        app.use(`${apiPath}/${filename}/${subSlug === 'index' ? '' : subSlug}`, item.default)
-        console.log(`掛載路由: ${apiPath}/${filename}/${subSlug === 'index' ? '' : subSlug}`);
+        app.use(
+          `${apiPath}/${filename}/${subSlug === 'index' ? '' : subSlug}`,
+          item.default
+        )
+        console.log(
+          `掛載路由: ${apiPath}/${filename}/${
+            subSlug === 'index' ? '' : subSlug
+          }`
+        )
       }
     }
   }
@@ -231,7 +250,7 @@ app.use((err, req, res, next) => {
   res.json({
     status: 'error',
     message: err.message,
-    stack: req.app.get('env') === 'development' ? err.stack : undefined
+    stack: req.app.get('env') === 'development' ? err.stack : undefined,
   })
 })
 
@@ -255,61 +274,127 @@ export default app
 // import sessionFileStore from 'session-file-store'
 // import { serverConfig } from '../config/server.config.js'
 // import { pathToFileURL } from 'url'
-// import 'dotenv/config.js'
-// import chatRouter from '../routes/article/chat.js'
-// import memberRouter from '../routes/member/login.js' // 你這路徑可能要依實際調整
+// import 'dotenv/config.js' // 確保 dotenv 被載入以讀取 .env 檔案中的變數
 
 // import jwt from 'jsonwebtoken'
-// import cookie from 'cookie'
+// import cookie from 'cookie' // 確保已安裝並引入 'cookie' 函式庫
+
 // // 建立 Express 應用程式與 HTTP Server
 // const app = express()
 // const server = createServer(app)
 
 // // 伺服器端暫存聊天室訊息陣列，供 REST API 路由與 Socket.IO 共用
 // const messages = []
-// const whiteList = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')
+
+// // CORS 白名單設定
+// const whiteList = (process.env.FRONTEND_URL || 'http://localhost:3000').split(
+//   ','
+// )
+
 // // Socket.IO 初始化
 // const io = new SocketIO(server, {
 //   cors: {
 //     origin: whiteList,
 //     methods: ['GET', 'POST'],
-//     credentials: true,
+//     credentials: true, // 允許跨域請求攜帶 cookie
 //   },
 // })
 
+// // JWT 驗證函式
 // function verifyToken(token) {
 //   try {
 //     return jwt.verify(token, process.env.JWT_SECRET)
 //   } catch (err) {
+//     console.error('JWT 驗證失敗:', err.message) // 打印具體的 JWT 錯誤訊息
 //     return null
 //   }
 // }
-// io.use((socket, next) => {
-//   const token = socket.handshake.auth.token
-//   console.log('socket.auth.token:', socket.handshake.auth.token)
 
-//   if (!token) return next(new Error('缺少 token'))
+// // Socket.IO 認證中介軟體 (在每個 Socket.IO 連線握手前執行)
+// io.use((socket, next) => {
+//   const cookiesHeader = socket.request.headers.cookie
+
+//   if (!cookiesHeader) {
+//     console.warn('Socket.IO 連線請求中缺少 Cookie 標頭')
+//     return next(new Error('缺少登入憑證 (Cookie 不存在)。請先登入。'))
+//   }
+
+//   const parsedCookies = cookie.parse(cookiesHeader)
+//   const token = parsedCookies.accessToken
+
+//   console.log(
+//     '從 Socket.IO 握手請求的 Cookie 中解析出的 token:',
+//     token ? '已取得' : '未取得'
+//   )
+
+//   if (!token) {
+//     return next(new Error('JWT 驗證失敗：Cookie 中無 accessToken。請先登入。'))
+//   }
 
 //   const member = verifyToken(token)
-//   if (!member) return next(new Error('JWT 驗證失敗'))
-//   console.log('驗證成功的會員資料:', member)
+//   if (!member) {
+//     return next(new Error('JWT 驗證失敗：Token 無效或過期。請重新登入。'))
+//   } // 驗證成功的會員資料，確認其包含 account 或 username 欄位
+
+//   console.log('JWT 驗證成功的會員資料:', member) // 將會員資料附加到 socket 物件，以便後續的連線處理邏輯使用
 //   socket.member = member
-//   next()
+//   next() // 繼續建立 Socket.IO 連線
 // })
 
-// // CORS 白名單設定
+// // Socket.IO 連線與訊息處理邏輯
+// // 這個監聽器必須在 io.use 中介軟體之外，才能在每次成功連線時觸發
+// io.on('connection', (socket) => {
+//   console.log(`Socket connected: ${socket.id}`) // 確保 socket.member 存在且包含 account 屬性 // 我們已經知道這裡的 member 物件有 name 屬性，而不是 account 或 username
+//   console.log(`Connected member name: ${socket.member?.name || '未知名稱'}`) // 連線時，發送當前所有歷史訊息給新連線的客戶端 // 也可以考慮只發送最近的 N 條訊息
 
+//   socket.emit('chat message', {
+//     id: 'system-welcome', // 系統訊息的 ID
+//     user: 'System', // 系統用戶 // 修改這裡，使用 socket.member?.name 來歡迎
+//     text: `歡迎 ${socket.member?.name || '新朋友'} 加入聊天室！`,
+//     createdAt: new Date().toISOString(),
+//   })
+//   messages.forEach((msg) => {
+//     socket.emit('chat message', msg)
+//   }) // 監聽客戶端發送的 'chat message' 事件
 
+//   socket.on('chat message', (msg) => {
+//     if (
+//       !msg ||
+//       !msg.text ||
+//       typeof msg.text !== 'string' ||
+//       msg.text.trim() === ''
+//     ) {
+//       console.warn(`無效訊息來自 ${socket.id}:`, msg)
+//       socket.emit('error message', '訊息內容不能為空！') // 發送錯誤訊息給發送者
+//       return
+//     }
 
+//     const newMsg = {
+//       id: Date.now(), // 修改這裡：現在優先使用 socket.member?.name，如果沒有就用 '匿名用戶'
+//       user: socket.member?.name || '匿名用戶',
+//       text: msg.text.trim(),
+//       createdAt: new Date().toISOString(),
+//     }
+//     messages.push(newMsg) // 將訊息儲存到伺服器端的陣列 // 將新訊息廣播給所有連線的客戶端
+
+//     io.emit('chat message', newMsg)
+//     console.log(`新訊息來自 ${newMsg.user}: ${newMsg.text}`)
+//   }) // 監聽客戶端斷開連線事件
+
+//   socket.on('disconnect', () => {
+//     console.log(`Socket disconnected: ${socket.id}`)
+//   })
+// })
+
+// // Express 中介軟體設定
 // app.use(
 //   cors({
 //     origin: function (origin, callback) {
-//       // 如果是非瀏覽器的請求（例如 Postman、server），origin 會是 undefined，這裡可判斷允許
 //       if (!origin) return callback(null, true)
-
 //       if (whiteList.indexOf(origin) !== -1) {
 //         callback(null, true)
 //       } else {
+//         console.error(`CORS: Origin ${origin} is not allowed`)
 //         callback(new Error('Not allowed by CORS'))
 //       }
 //     },
@@ -326,14 +411,16 @@ export default app
 
 // // Session Store 設定
 // let sessionStore = null
-
 // if (serverConfig.sessionStoreType === 'redis') {
 //   const redisClient = createClient({ url: process.env.REDIS_URL })
 //   redisClient.connect().catch(console.error)
-//   sessionStore = new RedisStore({ client: redisClient, prefix: 'express-vercel:' })
+//   sessionStore = new RedisStore({
+//     client: redisClient,
+//     prefix: 'express-vercel:',
+//   })
 // } else {
 //   const FileStore = sessionFileStore(session)
-//   sessionStore = new FileStore({ logFn: () => { } })
+//   sessionStore = new FileStore({ logFn: () => {} })
 // }
 
 // const isDev = process.env.NODE_ENV === 'development'
@@ -341,12 +428,12 @@ export default app
 // const options = isDev
 //   ? { maxAge: 30 * 86400000 }
 //   : {
-//     domain: serverConfig.domain,
-//     maxAge: 30 * 86400000,
-//     httpOnly: true,
-//     secure: true,
-//     sameSite: 'none',
-//   }
+//       domain: serverConfig.domain,
+//       maxAge: 30 * 86400000,
+//       httpOnly: true,
+//       secure: true,
+//       sameSite: 'none',
+//     }
 
 // if (!isDev) app.set('trust proxy', 1)
 
@@ -371,35 +458,47 @@ export default app
 // // 根路由簡單回應
 // app.get('/', (req, res) => res.send('Express server is running.'))
 
-// // 自動讀取 routes 資料夾並掛載路由（包含你的 chat 路由）
+// // 自動讀取 routes 資料夾並掛載路由
 // const apiPath = '/api'
 // const routePath = path.join(process.cwd(), 'routes')
-// const filenames = await fs.promises.readdir(routePath)
+// // 使用 await fs.promises.readdir 確保非同步操作完成
+// const topLevelFilenames = await fs.promises.readdir(routePath)
 
-// for (const filename of filenames) {
-//   const stats = fs.statSync(path.join(routePath, filename))
+// for (const filename of topLevelFilenames) {
+//   const fullPath = path.join(routePath, filename)
+//   const stats = fs.statSync(fullPath)
+
 //   if (stats.isFile()) {
-//     const item = await import(pathToFileURL(path.join(routePath, filename)))
+//     // 使用 await import 確保模組載入完成
+//     const item = await import(pathToFileURL(fullPath))
 //     const slug = filename.split('.')[0]
 //     app.use(`${apiPath}/${slug === 'index' ? '' : slug}`, item.default)
-//   }
-//   if (stats.isDirectory()) {
-//     const subFilenames = await fs.promises.readdir(path.join(routePath, filename))
+//     console.log(`掛載路由: ${apiPath}/${slug === 'index' ? '' : slug}`)
+//   } else if (stats.isDirectory()) {
+//     const subFilenames = await fs.promises.readdir(fullPath)
 //     for (const subFilename of subFilenames) {
-//       const subStats = fs.statSync(path.join(routePath, filename, subFilename))
+//       const subFullPath = path.join(fullPath, subFilename)
+//       const subStats = fs.statSync(subFullPath)
 //       if (subStats.isFile()) {
-//         const item = await import(pathToFileURL(path.join(routePath, filename, subFilename)))
-//         const slug = subFilename.split('.')[0]
-//         app.use(`${apiPath}/${filename}/${slug === 'index' ? '' : slug}`, item.default)
+//         const item = await import(pathToFileURL(subFullPath))
+//         const subSlug = subFilename.split('.')[0]
+//         app.use(
+//           `${apiPath}/${filename}/${subSlug === 'index' ? '' : subSlug}`,
+//           item.default
+//         )
+//         console.log(
+//           `掛載路由: ${apiPath}/${filename}/${
+//             subSlug === 'index' ? '' : subSlug
+//           }`
+//         )
 //       }
 //     }
 //   }
 // }
 
-
 // // 404 錯誤處理
 // app.use((req, res, next) => {
-//   next(createError(404))
+//   next(createError(404, `API 路徑 ${req.originalUrl} 不存在`))
 // })
 
 // // 錯誤處理中介軟體
@@ -407,11 +506,14 @@ export default app
 //   res.locals.message = err.message
 //   res.locals.error = req.app.get('env') === 'development' ? err : {}
 //   res.status(err.status || 500)
-//   res.json({ error: err.message || 'Internal Server Error' })
+//   res.json({
+//     status: 'error',
+//     message: err.message,
+//     stack: req.app.get('env') === 'development' ? err.stack : undefined,
+//   })
 // })
 
 // const port = process.env.PORT || 3000
 // server.listen(port, () => console.log(`Server ready on port ${port}.`))
 
 // export default app
-
