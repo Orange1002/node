@@ -73,19 +73,29 @@ router.post(
     try {
       const memberId = req.member.id
       const files = req.files || [] // 多張圖
-      const { name, age, breed, description } = req.body
+      const { name, age, breed, description, size_id } = req.body
 
       // 將檔案路徑組成 JSON 陣列字串存到資料庫
       const images = files.map((file) =>
         path.posix.join('/member/dogs_images', file.filename)
       )
 
-      await db.query(
-        `INSERT INTO dogs (member_id, name, age, breed, description, dogs_images, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-        [memberId, name, age, breed, description, JSON.stringify(images)]
+      const [result] = await db.query(
+        `INSERT INTO dogs (member_id, name, age, breed, description, size_id, dogs_images, created_at, updated_at) 
+   VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [
+          memberId,
+          name,
+          age,
+          breed,
+          description,
+          size_id,
+          JSON.stringify(images),
+        ]
       )
 
-      successResponse(res)
+      // 將 insertId 回傳
+      successResponse(res, { insertId: result.insertId })
     } catch (error) {
       console.error(error)
       errorResponse(res, error)
@@ -100,7 +110,7 @@ router.put(
   upload.array('dog_images', 5), // 改成 array
   async (req, res) => {
     const { id } = req.params
-    const { name, age, breed, description } = req.body
+    const { name, age, breed, description, size_id } = req.body
     const files = req.files || []
 
     try {
@@ -120,9 +130,9 @@ router.put(
         : dog.dogs_images
 
       await db.query(
-        `UPDATE dogs SET name = ?, age = ?, breed = ?, description = ?, dogs_images = ?, updated_at = NOW()
-         WHERE id = ?`,
-        [name, age, breed, description, images, id]
+        `UPDATE dogs SET name = ?, age = ?, breed = ?, description = ?, size_id = ?, dogs_images = ?, updated_at = NOW()
+   WHERE id = ?`,
+        [name, age, breed, description, size_id, images, id]
       )
 
       successResponse(res)

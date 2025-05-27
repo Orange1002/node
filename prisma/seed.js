@@ -188,7 +188,7 @@ async function main() {
     // this maybe anti typescript way
     const result = await prisma[prop].createMany({
       data,
-      skipDuplicates: true,
+      skipDuplicates: false,
     })
 
     // 如果是開發環境，顯示訊息

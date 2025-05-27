@@ -137,7 +137,7 @@ router.post('/login', upload.none(), async (req, res) => {
   if (isDev) console.log(req.body)
 
   try {
-    // 需要加上await等待取得資料 
+    // 需要加上await等待取得資料
     // member是會員資料，不包含profile
     const member = await login(req.body)
 

@@ -44,8 +44,10 @@
     "request": "^2.88.2",
     "secure-compare": "^3.0.1",
     "session-file-store": "^1.5.0",
+    "socket.io": "^4.8.1",
     "sql-template-strings": "^2.2.2",
     "sqlstring": "^2.3.3",
+    "swiper": "^11.2.7",
     "zod": "^3.23.8"
   },
   "devDependencies": {
