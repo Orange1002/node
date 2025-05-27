@@ -146,7 +146,8 @@ export const getAvailableCoupons = async (memberId) => {
   })
 
   return results.map((entry) => ({
-    ...entry,
+    ...entry.coupon,
+    image: entry.coupon.images?.[0]?.image || null,
     status: computeCouponStatus(entry.coupon, entry.usedAt),
   }))
 }
@@ -178,7 +179,9 @@ export const getUsedCoupons = async (memberId) => {
   })
 
   return results.map((entry) => ({
-    ...entry,
+    ...entry.coupon,
+    usedAt: entry.usedAt,
+    image: entry.coupon.images?.[0]?.image || null,
     status: computeCouponStatus(entry.coupon, entry.usedAt),
   }))
 }
@@ -293,7 +296,7 @@ export const getClaimableCoupons = async (memberId) => {
 
   const claimedIds = claimedCouponIds.map((c) => c.couponId)
 
-  return await prisma.coupon.findMany({
+  const coupons = await prisma.coupon.findMany({
     where: {
       id: { notIn: claimedIds },
       enabled: true,
@@ -307,4 +310,9 @@ export const getClaimableCoupons = async (memberId) => {
       endAt: 'asc',
     },
   })
+
+  return coupons.map((c) => ({
+    ...c,
+    image: c.images?.[0]?.image || null,
+  }))
 }
