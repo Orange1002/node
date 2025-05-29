@@ -14,19 +14,19 @@ export const serverConfig = {
   // 後端伺服器佈置後的網域名稱，與cookie有關
   domain: env === 'development' ? '' : 'xxxxxx.vercel.app',
   // ethereal
-  smtp: {
-    provider: 'ethereal',
-    host: 'smtp.ethereal.email',
-    user: 'mittie.daniel91@ethereal.email',
-    pass: 'b6en9s7EqjP9EPVKkd',
-  },
-  // gmail
   // smtp: {
-  //   provider: 'gmail',
-  //   host: 'smtp.gmail.com',
-  //   user: 'xxxxxx@gmail.com',
-  //   pass: 'xxxxxxxx',
+  //   provider: 'ethereal',
+  //   host: 'smtp.ethereal.email',
+  //   user: 'mittie.daniel91@ethereal.email',
+  //   pass: 'b6en9s7EqjP9EPVKkd',
   // },
+  // gmail
+  smtp: {
+    provider: 'gmail',
+    host: 'smtp.gmail.com',
+    user: 'ggljmplay@gmail.com',
+    pass: 'szhdcmgnxkekuckk',
+  },
   jwt: {
     secret: 'access_token_secret',
   },

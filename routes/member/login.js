@@ -5,7 +5,6 @@ import bcrypt from 'bcrypt'
 import dotenv from 'dotenv'
 import crypto from 'crypto'
 
-// 自訂工具
 import { successResponse, errorResponse, isDev } from '../../lib/utils.js'
 import { sendOtpMail } from '../../lib/mail.js'
 import {
@@ -35,7 +34,7 @@ function generateAccessToken(res, member) {
     httpOnly: true,
     secure: false, // 上線時請改為 true
     sameSite: 'Lax',
-    maxAge: 2 * 60 * 60 * 1000, // 2小時
+    maxAge: 3 * 60 * 60 * 1000, // 2小時
   })
 
   return res.json({
@@ -66,7 +65,6 @@ router.post('/', async (req, res) => {
     }
 
     const member = rows[0]
-
     const match = await bcrypt.compare(password, member.password)
     if (!match) {
       return errorResponse(res, { message: '帳號或密碼錯誤' }, 401)
@@ -92,13 +90,11 @@ router.post('/google-login', async (req, res) => {
   const google_uid = uid
 
   try {
-    // 1. 用 email 查會員
     const [emailRows] = await db.query('SELECT * FROM member WHERE email = ?', [
       email,
     ])
     const emailMember = emailRows.length ? emailRows[0] : null
 
-    // 2. 用 googleUid 查會員
     const [googleRows] = await db.query(
       'SELECT * FROM member WHERE google_uid = ?',
       [google_uid]
@@ -107,7 +103,6 @@ router.post('/google-login', async (req, res) => {
 
     let member = null
 
-    // 有 email，但無 googleUid → 綁定 googleUid
     if (!googleUidMember && emailMember) {
       await db.query('UPDATE member SET google_uid = ? WHERE email = ?', [
         google_uid,
@@ -118,24 +113,15 @@ router.post('/google-login', async (req, res) => {
         [email]
       )
       member = updatedRows[0]
-    }
-
-    // 兩者都有 → 使用 googleUidMember
-    else if (googleUidMember && emailMember) {
+    } else if (googleUidMember && emailMember) {
       member = googleUidMember
-    }
-
-    // 兩者都沒有 → 新增會員
-    else if (!googleUidMember && !emailMember) {
+    } else if (!googleUidMember && !emailMember) {
       const randomPassword = crypto.randomBytes(10).toString('hex')
       const username = String(google_uid)
-
       const [insertResult] = await db.query(
-        'INSERT INTO member (username, password, email, google_uid, image_url) VALUES ( ?, ?, ?, ?, ?)',
+        'INSERT INTO member (username, password, email, google_uid, image_url) VALUES (?, ?, ?, ?, ?)',
         [username, randomPassword, email, google_uid, photoURL]
       )
-
-      // 新增後讀取會員資料
       const [newMemberRows] = await db.query(
         'SELECT * FROM member WHERE id = ?',
         [insertResult.insertId]
@@ -149,8 +135,83 @@ router.post('/google-login', async (req, res) => {
 
     if (isDev) console.log('登入會員資料:', member)
 
-    // 產生 JWT token 並回應 (你原本的 generateAccessToken 函式)
     return generateAccessToken(res, member)
+  } catch (err) {
+    console.error(err)
+    return errorResponse(res, { message: '伺服器錯誤' }, 500)
+  }
+})
+
+/**
+ * ✅ API：產生 OTP (用於重設密碼)
+ * POST /api/auth/otp
+ * body: { email }
+ */
+router.post('/otp', async (req, res) => {
+  const { email } = req.body
+  if (!email) return errorResponse(res, { message: '請提供 email' }, 400)
+
+  try {
+    const [rows] = await db.query('SELECT * FROM member WHERE email = ?', [
+      email,
+    ])
+    if (rows.length === 0)
+      return errorResponse(res, { message: '查無此會員' }, 404)
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString()
+    const expire = new Date(Date.now() + 10 * 60 * 1000) // 10分鐘後過期
+
+    await db.query(
+      'UPDATE member SET otp = ?, otp_expire = ? WHERE email = ?',
+      [otp, expire, email]
+    )
+
+    await sendOtpMail(email, otp)
+    return successResponse(res, { message: '驗證碼已寄出，請於 10 分鐘內使用' })
+  } catch (err) {
+    console.error(err)
+    return errorResponse(res, { message: '伺服器錯誤' }, 500)
+  }
+})
+
+/**
+ * ✅ API：透過 Email + OTP 重設密碼
+ * POST /api/auth/reset-password
+ * body: { email, otp, newPassword }
+ */
+router.post('/reset-password', async (req, res) => {
+  const { email, otp, newPassword } = req.body
+
+  if (!email || !otp || !newPassword) {
+    return errorResponse(res, { message: '請提供 email、OTP 與新密碼' }, 400)
+  }
+
+  try {
+    const [rows] = await db.query('SELECT * FROM member WHERE email = ?', [
+      email,
+    ])
+    if (rows.length === 0)
+      return errorResponse(res, { message: '查無此會員' }, 404)
+
+    const member = rows[0]
+
+    const now = new Date()
+    if (
+      !member.otp ||
+      member.otp !== otp ||
+      new Date(member.otp_expire) < now
+    ) {
+      return errorResponse(res, { message: '驗證碼錯誤或已過期' }, 400)
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10)
+
+    await db.query(
+      'UPDATE member SET password = ?, otp = NULL, otp_expire = NULL WHERE email = ?',
+      [hashedPassword, email]
+    )
+
+    return successResponse(res, { message: '密碼已更新，請重新登入' })
   } catch (err) {
     console.error(err)
     return errorResponse(res, { message: '伺服器錯誤' }, 500)

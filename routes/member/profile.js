@@ -89,13 +89,7 @@ router.put('/edit', authenticate, (req, res) => {
     }
 
     try {
-      let {
-        username = '',
-        email = '',
-        birth_date,
-        gender = '',
-        phone = '',
-      } = updatedMember
+      let { username = '', birth_date, gender = '', phone = '' } = updatedMember
 
       if (birth_date === '') {
         birth_date = null
@@ -115,10 +109,10 @@ router.put('/edit', authenticate, (req, res) => {
         // 更新包含圖片路徑及更新時間
         await db.query(
           `UPDATE member 
-           SET username = ?, email = ?, birth_date = ?, gender = ?, phone = ?, 
+           SET username = ?, birth_date = ?, gender = ?, phone = ?, 
                image_url = ?, image_updated_at = NOW()
            WHERE id = ?`,
-          [username, email, birth_date, gender, phone, image_url, memberId]
+          [username, birth_date, gender, phone, image_url, memberId]
         )
 
         return successResponse(res, { image_url })
@@ -126,9 +120,9 @@ router.put('/edit', authenticate, (req, res) => {
         // 沒有更新圖片
         await db.query(
           `UPDATE member 
-           SET username = ?, email = ?, birth_date = ?, gender = ?, phone = ?
+           SET username = ?, birth_date = ?, gender = ?, phone = ?
            WHERE id = ?`,
-          [username, email, birth_date, gender, phone, memberId]
+          [username, birth_date, gender, phone, memberId]
         )
 
         return successResponse(res, {}) // 沒更新圖片就不回傳 image_url

@@ -21,7 +21,9 @@ const storage = multer.diskStorage({
   },
   filename: function (req, file, callback) {
     const ext = path.extname(file.originalname)
-    const newFilename = `dog_${Date.now()}${ext}`
+    const newFilename = `dog_${Date.now()}_${Math.floor(
+      Math.random() * 10000
+    )}${ext}`
     callback(null, newFilename)
   },
 })
@@ -107,36 +109,67 @@ router.post(
 router.put(
   '/edit/:id',
   authenticate,
-  upload.array('dog_images', 5), // 改成 array
+  upload.array('dog_images', 5), // 多張圖片上傳
   async (req, res) => {
     const { id } = req.params
     const { name, age, breed, description, size_id } = req.body
     const files = req.files || []
 
     try {
-      // 驗證此筆資料是否屬於該會員
+      // 先檢查資料是否屬於該會員
       const [[dog]] = await db.query('SELECT * FROM dogs WHERE id = ?', [id])
       if (!dog || dog.member_id !== req.member.id) {
         return res.status(403).json({ message: '無權限修改此狗狗資料' })
       }
 
-      // 如果有上傳新圖片，組成新的圖片陣列字串；沒有就保留原本
-      const images = files.length
-        ? JSON.stringify(
-            files.map((file) =>
-              path.posix.join('/member/dogs_images', file.filename)
-            )
-          )
-        : dog.dogs_images
+      // 解析前端傳來的 existingPhotos 與 photosToDelete
+      // 注意這兩個會是 JSON 字串，若沒傳則預設空陣列
+      const existingPhotos = req.body.existingPhotos
+        ? JSON.parse(req.body.existingPhotos).map((url) => {
+            // 確保只保留相對路徑部分（如 /member/dogs_images/xxx.jpg）
+            return url.replace(/^https?:\/\/[^/]+/, '')
+          })
+        : []
+      const photosToDelete = req.body.photosToDelete
+        ? JSON.parse(req.body.photosToDelete)
+        : []
 
-      await db.query(
-        `UPDATE dogs SET name = ?, age = ?, breed = ?, description = ?, size_id = ?, dogs_images = ?, updated_at = NOW()
-   WHERE id = ?`,
-        [name, age, breed, description, size_id, images, id]
+      // 刪除實體檔案
+      photosToDelete.forEach((photoPath) => {
+        // photoPath 形如 /member/dogs_images/xxx.jpg
+        const fullPath = path.join('public', photoPath)
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath)
+        }
+      })
+
+      // 新上傳圖片路徑
+      const newImages = files.map((file) =>
+        path.posix.join('/member/dogs_images', file.filename)
       )
 
-      successResponse(res)
+      // 合併剩餘舊照片與新上傳圖片
+      const updatedImages = [...existingPhotos, ...newImages]
+
+      // 更新資料庫
+      await db.query(
+        `UPDATE dogs SET name = ?, age = ?, breed = ?, description = ?, size_id = ?, dogs_images = ?, updated_at = NOW()
+         WHERE id = ?`,
+        [
+          name,
+          age,
+          breed,
+          description,
+          size_id,
+          JSON.stringify(updatedImages),
+          id,
+        ]
+      )
+
+      // 回傳成功與最新圖片陣列
+      successResponse(res, updatedImages)
     } catch (err) {
+      console.error(err)
       errorResponse(res, err)
     }
   }
