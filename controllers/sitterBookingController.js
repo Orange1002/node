@@ -44,12 +44,12 @@ export const createSitterBooking = async (req, res) => {
 
     const { username, dog_name, sitter_name, start_date, end_date } = details[0]
 
-    // 3️⃣ 寫入通知（正確對應欄位）
-    const content = `您已成功預約 ${sitter_name} 的服務，寵物：${dog_name}，期間：${start_date} ~ ${end_date}`
-    await db.query(
-      `INSERT INTO notifications (member_id, content, is_read) VALUES (?, ?, 0)`,
-      [memberId, content]
-    )
+    // // 3️⃣ 寫入通知（正確對應欄位）
+    // const content = `您已成功預約 ${sitter_name} 的服務，寵物：${dog_name}，期間：${start_date} ~ ${end_date}`
+    // await db.query(
+    //   `INSERT INTO notifications (member_id, content, is_read) VALUES (?, ?, 0)`,
+    //   [memberId, content]
+    // )
 
     // 4️⃣ 回傳結果
     res.json({ status: 'success', booking: details[0] })
