@@ -18,6 +18,7 @@ export const createOrder = async (req, res) => {
       storeAddress,
       paymentMethod,
       totalAmount,
+      couponId,
       orderItems,
       orderServices,
     } = req.body
@@ -45,8 +46,8 @@ export const createOrder = async (req, res) => {
         delivery_method, city, town, address,
         store_name, store_address,
         order_payment_id, total_amount,
-        order_status_id, created_at
-      ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1', NOW())`,
+        coupon_id, order_status_id, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1', NOW())`,
       [
         memberId,
         recipientName,
@@ -60,6 +61,7 @@ export const createOrder = async (req, res) => {
         storeAddress,
         paymentMethod,
         totalAmount,
+        couponId,
       ]
     )
 
@@ -111,6 +113,14 @@ export const createOrder = async (req, res) => {
           service.end_time,
           service.price,
         ]
+      )
+    }
+
+    // 刪除對應的優惠卷
+    if (couponId !== 0) {
+      await db.query(
+        `DELETE FROM member_coupons WHERE member_id = ? AND coupon_id = ?`,
+        [memberId, couponId]
       )
     }
 
