@@ -115,6 +115,26 @@ router.post('/remove', authenticate, async (req, res) => {
         res.status(500).json({ success: false, message: '資料庫錯誤' })
     }
 })
-
+router.get('/top-favorites', async (req, res) => {
+    try {
+      const [rows] = await db.query(`
+        SELECT a.*, IFNULL(f.favoriteCount, 0) AS favoriteCount
+        FROM article a
+        LEFT JOIN (
+          SELECT article_id, COUNT(*) AS favoriteCount
+          FROM article_favorites
+          GROUP BY article_id
+        ) f ON a.id = f.article_id
+        ORDER BY favoriteCount DESC
+        LIMIT 8
+      `)
+  
+      res.json({ success: true, result: rows })
+    } catch (error) {
+      console.error('GET /article-popular/top-favorites 錯誤:', error)
+      res.status(500).json({ success: false, message: '資料庫錯誤' })
+    }
+  })
+  
 export default router
 
