@@ -79,43 +79,54 @@ router.put('/edit', authenticate, (req, res) => {
     const memberId = req.member.id
     const updatedMember = req.body
     const file = req.file
+    const removeAvatar = updatedMember.remove_avatar === 'true'
 
     if (isDev) {
       console.log('memberId:', memberId)
       console.log('updatedMember:', updatedMember)
       console.log('上傳的檔案:', file)
+      console.log('是否移除頭像:', removeAvatar)
     }
 
     try {
-      if (file) {
-        updatedMember.image_url = path.posix.join(
-          '/member/member_images',
-          file.filename
-        )
-      }
-
-      let {
-        username = '',
-        email = '',
-        birth_date,
-        gender = '',
-        phone = '',
-        image_url = null,
-      } = updatedMember
+      let { username = '', birth_date, gender = '', phone = '' } = updatedMember
 
       if (birth_date === '') {
         birth_date = null
       }
 
-      await db.query(
-        `UPDATE member 
-         SET username = ?, email = ?, birth_date = ?, gender = ?, phone = ?, 
-             image_url = ?, image_updated_at = NOW()
-         WHERE id = ?`,
-        [username, email, birth_date, gender, phone, image_url, memberId]
-      )
+      let image_url = null // 預設不更新圖片
 
-      successResponse(res, { image_url })
+      if (file) {
+        // 有上傳新頭貼
+        image_url = path.posix.join('/member/member_images', file.filename)
+      } else if (removeAvatar) {
+        // 前端要求移除頭貼，改為預設圖片路徑
+        image_url = '/member/member_images/user-img.svg'
+      }
+
+      if (image_url !== null) {
+        // 更新包含圖片路徑及更新時間
+        await db.query(
+          `UPDATE member 
+           SET username = ?, birth_date = ?, gender = ?, phone = ?, 
+               image_url = ?, image_updated_at = NOW()
+           WHERE id = ?`,
+          [username, birth_date, gender, phone, image_url, memberId]
+        )
+
+        return successResponse(res, { image_url })
+      } else {
+        // 沒有更新圖片
+        await db.query(
+          `UPDATE member 
+           SET username = ?, birth_date = ?, gender = ?, phone = ?
+           WHERE id = ?`,
+          [username, birth_date, gender, phone, memberId]
+        )
+
+        return successResponse(res, {}) // 沒更新圖片就不回傳 image_url
+      }
     } catch (error) {
       console.error(error)
       errorResponse(res, error)

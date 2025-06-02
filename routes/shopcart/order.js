@@ -18,6 +18,7 @@ export const createOrder = async (req, res) => {
       storeAddress,
       paymentMethod,
       totalAmount,
+      couponId,
       orderItems,
       orderServices,
     } = req.body
@@ -45,8 +46,8 @@ export const createOrder = async (req, res) => {
         delivery_method, city, town, address,
         store_name, store_address,
         order_payment_id, total_amount,
-        order_status_id, created_at
-      ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1', NOW())`,
+        coupon_id, order_status_id, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1', NOW())`,
       [
         memberId,
         recipientName,
@@ -60,6 +61,7 @@ export const createOrder = async (req, res) => {
         storeAddress,
         paymentMethod,
         totalAmount,
+        couponId,
       ]
     )
 
@@ -72,9 +74,20 @@ export const createOrder = async (req, res) => {
       }
 
       await db.execute(
-        `INSERT INTO order_items (order_id, product_id, quantity, price)
-         VALUES (?, ?, ?, ?)`,
-        [orderId, item.product_id, item.count, item.price]
+        `INSERT INTO order_items (order_id, product_id, name, image, color, size, packing, items_group, quantity, price)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          orderId,
+          item.product_id,
+          item.name,
+          item.image,
+          item.color,
+          item.size,
+          item.packing,
+          item.items_group,
+          item.count,
+          item.price,
+        ]
       )
     }
 
@@ -89,16 +102,25 @@ export const createOrder = async (req, res) => {
       }
 
       await db.execute(
-        `INSERT INTO order_services (order_id, sitter_id, pet_id, start_time, end_time, price)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO order_services (order_id, sitter_id, image, dogs_id, start_time, end_time, price)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           orderId,
           service.sitter_id,
+          service.image,
           service.pet_id,
           service.start_time,
           service.end_time,
           service.price,
         ]
+      )
+    }
+
+    // 刪除對應的優惠卷
+    if (couponId !== 0) {
+      await db.query(
+        `DELETE FROM member_coupons WHERE member_id = ? AND coupon_id = ?`,
+        [memberId, couponId]
       )
     }
 

@@ -1,10 +1,9 @@
 import express from 'express'
 const router = express.Router()
 import * as crypto from 'crypto'
-// import { isDev, successResponse, errorResponse } from '../lib/utils.js'
+import { isDev, successResponse, errorResponse } from '../lib/utils.js'
 
 /* GET home page. */
-// http://localhost:3005/api/ecpay-test-only?amount=2500&items=商品1X2,商品2X3
 router.get('/', function (req, res) {
   // 目前只需要一個參數，總金額。其它的可以自行設定
   const amount = Number(req.query.amount) || 0
@@ -15,13 +14,13 @@ router.get('/', function (req, res) {
       ? items.split(',').join('#')
       : '線上商店購買一批'
 
-  // if (isDev) console.log('amount:', amount)
-  // if (isDev) console.log('items:', items)
-  // if (isDev) console.log('itemName:', itemName)
+  if (isDev) console.log('amount:', amount)
+  if (isDev) console.log('items:', items)
+  if (isDev) console.log('itemName:', itemName)
 
-  // if (!amount) {
-  //   return errorResponse(res, '缺少總金額')
-  // }
+  if (!amount) {
+    return errorResponse(res, '缺少總金額')
+  }
 
   //綠界全方位金流技術文件：
   // https://developers.ecpay.com.tw/?p=2856
@@ -42,9 +41,9 @@ router.get('/', function (req, res) {
   // 付款結果通知回傳網址(這網址可能需要網路上的真實網址或IP，才能正確接收回傳結果)
   const ReturnURL = 'https://www.ecpay.com.tw'
   // (二選一)以下這個設定，會有回傳結果，但要用前端的api路由來接收並協助重新導向到前端成功callback頁面(不用時下面要83~97從中的值要註解)
-  //const OrderResultURL = 'http://localhost:3000/ecpay/api' //前端成功頁面api路由(POST)
+  const OrderResultURL = 'http://localhost:3000/ecpay/api' //前端成功頁面api路由(POST)
   // (二選一)以下這個設定，不會任何回傳結果(不用時下面要83~97從中的值要註解)
-  const ClientBackURL = 'http://localhost:3000/shopcart/orderCompleted' //前端成功頁面
+  // const ClientBackURL = 'http://localhost:3000/ecpay/callback' //前端成功頁面
   const ChoosePayment = 'ALL'
 
   ////////////////////////以下參數不用改////////////////////////
@@ -92,8 +91,8 @@ router.get('/', function (req, res) {
     ItemName: ItemName,
     ReturnURL: ReturnURL,
     ChoosePayment: ChoosePayment,
-    // OrderResultURL,
-    ClientBackURL,
+    OrderResultURL,
+    // ClientBackURL,
   }
 
   //四、計算 CheckMacValue
@@ -146,39 +145,39 @@ router.get('/', function (req, res) {
   // 六、製作送出畫面
   //
   // # region --- 純後端送出form的作法，可以進行簡單的測試用  ---
-
-  const inputs = Object.entries(AllParams)
-    .map(function (param) {
-      return `<input name=${
-        param[0]
-      } value="${param[1].toString()}" style="display:none"><br/>`
-    })
-    .join('')
-
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title></title>
-    </head>
-    <body>
-        <form method="post" action="${APIURL}" style="display:none">
-    ${inputs}
-    <input type="submit" value="送出參數" style="display:none">
-        </form>
-    <script>
-      document.forms[0].submit();
-    </script>
-    </body>
-    </html>
-    `
-  res.send(htmlContent)
+  //
+  // const inputs = Object.entries(AllParams)
+  //   .map(function (param) {
+  //     return `<input name=${
+  //       param[0]
+  //     } value="${param[1].toString()}" style="display:none"><br/>`
+  //   })
+  //   .join('')
+  //
+  // const htmlContent = `
+  //   <!DOCTYPE html>
+  //   <html>
+  //   <head>
+  //       <title></title>
+  //   </head>
+  //   <body>
+  //       <form method="post" action="${APIURL}" style="display:none">
+  //   ${inputs}
+  //   <input type="submit" value="送出參數" style="display:none">
+  //       </form>
+  //   <script>
+  //     document.forms[0].submit();
+  //   </script>
+  //   </body>
+  //   </html>
+  //   `
+  // res.send(htmlContent)
   // # endregion ----------------------------------------
 
   // 送至react前端，由前端產生表單控制送出的動作
   // 這是為了在前端可以更靈活的控制送出的動作
   // action: 表單送出的網址, params: 所有表單中的欄位參數值
-  //successResponse(res, { action: APIURL, params: AllParams })
+  successResponse(res, { action: APIURL, params: AllParams })
 })
 
 export default router
