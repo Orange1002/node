@@ -127,6 +127,7 @@ model Product {
   reviews                   ProductReview[]
   favorites                 ProductFavorite[]
   ProductVariantCombination ProductVariantCombination[]
+  ProductCouponMap          ProductCouponMap[]
 }
 
 model ProductSubcategory {
@@ -262,16 +263,19 @@ model member {
 }
 
 model Coupon {
-  id            Int            @id @default(autoincrement())
-  code          String?        @db.VarChar(255)
-  title         String?        @db.VarChar(255)
+  id            Int              @id @default(autoincrement())
+  code          String?          @db.VarChar(255)
+  title         String?          @db.VarChar(255)
   description   String?
-  discountType  DiscountType?  @map("discount_type")
-  discountValue Decimal?       @map("discount_value") @db.Decimal(10, 2)
-  minPurchase   Decimal?       @map("min_purchase") @db.Decimal(10, 2)
-  startAt       DateTime?      @map("start_at")
-  endAt         DateTime?      @map("end_at")
+  discountType  DiscountType?    @map("discount_type")
+  discountValue Decimal?         @map("discount_value") @db.Decimal(10, 2)
+  minPurchase   Decimal?         @map("min_purchase") @db.Decimal(10, 2)
+  startAt       DateTime?        @map("start_at")
+  endAt         DateTime?        @map("end_at")
   enabled       Boolean?
+  usageTypeId   Int?             @map("usage_type_id")
+  usageType     CouponUsageType? @relation(fields: [usageTypeId], references: [id])
+
   images        CouponImage[]  @relation("CouponImages")
   memberCoupons MemberCoupon[]
 
@@ -279,8 +283,17 @@ model Coupon {
   vipLevel             VipLevel?              @relation(fields: [vipLevelId], references: [id])
   categoryCouponMap    CategoryCouponMap[]
   subcategoryCouponMap SubcategoryCouponMap[]
+  ProductCouponMap     ProductCouponMap[]
 
   @@map("coupons")
+}
+
+model CouponUsageType {
+  id      Int      @id
+  name    String
+  coupons Coupon[]
+
+  @@map("coupon_usage_types")
 }
 
 model CouponImage {
@@ -339,6 +352,16 @@ model SubcategoryCouponMap {
   subcategory ProductSubcategory? @relation(fields: [subcategoryId], references: [id])
 
   @@map("subcategory_coupon_map")
+}
+
+model ProductCouponMap {
+  id         Int      @id @default(autoincrement())
+  couponId  Int?     @map("coupon_id")
+  productId Int?     @map("product_id")
+  coupon     Coupon?  @relation(fields: [couponId], references: [id])
+  product    Product? @relation(fields: [productId], references: [id])
+
+  @@map("product_coupon_map")
 }
 
 model OrderPayment {
