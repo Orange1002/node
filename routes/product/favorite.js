@@ -40,4 +40,39 @@ router.post('/', authenticate, async (req, res) => {
   }
 })
 
+// 抓取收藏清單
+router.get('/', authenticate, async (req, res) => {
+  const memberId = req.member?.id
+
+  try {
+    const favorites = await prisma.productFavorite.findMany({
+      where: { member_id: memberId },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            product_images: {
+              where: { is_primary: true },
+              select: { image: true },
+            },
+          },
+        },
+      },
+    })
+
+    const data = favorites.map((fav) => ({
+      product_id: fav.product.id,
+      product_name: fav.product.name,
+      product_price: fav.product.price,
+      primary_image: fav.product.product_images?.[0]?.image || null,
+    }))
+
+    successResponse(res, data)
+  } catch (error) {
+    errorResponse(res, error)
+  }
+})
+
 export default router

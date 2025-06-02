@@ -254,11 +254,18 @@ export const getProductById = async (productId, memberId = null) => {
   const reviews = await prisma.productReview.findMany({
     where: { productId },
     orderBy: { created_at: 'desc' },
-    take: 5, // 可依需求設定顯示幾則
+    take: 5,
     select: {
+      id: true,
       rating: true,
       comment: true,
       created_at: true,
+      memberId: true,
+      member: {
+        select: {
+          username: true,
+        },
+      },
     },
   })
   product.reviews = reviews

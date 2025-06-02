@@ -184,11 +184,13 @@ model ProductReview {
   id         Int      @id @default(autoincrement())
   product    Product  @relation(fields: [productId], references: [id])
   productId  Int      @map("product_id")
-  memberId   Int      @map("member_id")
+  member     member?  @relation(fields: [memberId], references: [id])
+  memberId   Int?     @map("member_id")
   rating     Int
   comment    String?
   created_at DateTime @default(now()) @map("created_at")
 
+  @@unique([productId, memberId])
   @@map("product_reviews")
 }
 
@@ -244,18 +246,19 @@ model ProductVariantCombinationOption {
 }
 
 model member {
-  id              Int        @id @default(autoincrement())
-  username        String     @unique
+  id              Int             @id @default(autoincrement())
+  username        String          @unique
   password        String
-  email           String     @unique
+  email           String          @unique
   // 關聯 User:Profile = 1:1 
   profile         Profile?
-  emailValidated  Boolean    @default(false) @map("email_validated")
-  googleUid       String?    @unique @map("google_uid")
-  lineUid         String?    @unique @map("line_uid")
-  lineAccessToken String?    @map("line_access_token") @db.Text
+  emailValidated  Boolean         @default(false) @map("email_validated")
+  googleUid       String?         @unique @map("google_uid")
+  lineUid         String?         @unique @map("line_uid")
+  lineAccessToken String?         @map("line_access_token") @db.Text
   // 關聯: User:Product = n:m 透過 Favorite
   favorites       Favorite[]
+  product_reviews ProductReview[]
 }
 
 model Coupon {
@@ -276,7 +279,6 @@ model Coupon {
   vipLevel             VipLevel?              @relation(fields: [vipLevelId], references: [id])
   categoryCouponMap    CategoryCouponMap[]
   subcategoryCouponMap SubcategoryCouponMap[]
-  
 
   @@map("coupons")
 }
@@ -337,4 +339,86 @@ model SubcategoryCouponMap {
   subcategory ProductSubcategory? @relation(fields: [subcategoryId], references: [id])
 
   @@map("subcategory_coupon_map")
+}
+
+model OrderPayment {
+  id   Int    @id @default(autoincrement())
+  name String @db.VarChar(10)
+
+  orders Order[]
+
+  @@map("order_payment")
+}
+
+model OrderStatus {
+  id   Int    @id @default(autoincrement())
+  name String @db.VarChar(10)
+
+  orders Order[]
+
+  @@map("order_status")
+}
+
+model Order {
+  id             Int            @id @default(autoincrement())
+  memberId       Int            @map("member_id")
+  recipientName  String         @map("recipient_name") @db.VarChar(100)
+  recipientPhone String         @map("recipient_phone") @db.VarChar(20)
+  recipientEmail String         @map("recipient_email") @db.VarChar(100)
+  deliveryMethod DeliveryMethod @map("delivery_method")
+  city           String?        @db.VarChar(50)
+  town           String?        @db.VarChar(50)
+  address        String?
+  storeName      String?        @map("store_name") @db.VarChar(100)
+  storeAddress   String?        @map("store_address")
+  orderPaymentId Int            @map("order_payment_id")
+  orderStatusId  Int            @map("order_status_id")
+  coupon_id      Int?           @map("coupon_id")
+  totalAmount    Decimal        @map("total_amount") @db.Decimal(10, 2)
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  order_status  OrderStatus    @relation(fields: [orderStatusId], references: [id])
+  order_payment OrderPayment   @relation(fields: [orderPaymentId], references: [id])
+  order_items   OrderItem[]
+  OrderService  OrderService[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id          Int     @id @default(autoincrement())
+  orderId     Int     @map("order_id")
+  productId   Int     @map("product_id")
+  name        String  @db.VarChar(255)
+  image       String  @db.VarChar(255)
+  color       String  @db.VarChar(255)
+  size        String  @db.VarChar(255)
+  packing     String  @db.VarChar(255)
+  items_group String  @db.VarChar(255)
+  quantity    Int
+  price       Decimal @db.Decimal(10, 2)
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("order_items")
+}
+
+model OrderService {
+  id        Int      @id @default(autoincrement())
+  orderId   Int      @map("order_id")
+  sitterId  Int      @map("sitter_id")
+  image     String   @db.VarChar(255)
+  dogsId    Int      @map("dogs_id")
+  startTime DateTime @map("start_time")
+  endTime   DateTime @map("end_time")
+  price     Decimal  @db.Decimal(10, 2)
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("order_services")
+}
+
+enum DeliveryMethod {
+  宅配
+  超商取貨
 }
