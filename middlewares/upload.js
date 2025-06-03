@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'public/sitter') // 放到 public/uploads
+    cb(null, 'public/images') // 放到 public/uploads
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname)

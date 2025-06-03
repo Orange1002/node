@@ -3,16 +3,18 @@ import db from '../config/mysql.js'
 
 export const createSitterBooking = async (req, res) => {
   const memberId = req.member.id
-  const { sitterId, startDate, endDate, petId } = req.body
+  const sitterId = req.params.sitterId // 正確
+  const { startDate, endDate, petId } = req.body
+  console.log('✅ memberId:', req.member?.id)
+  console.log('✅ sitterId:', req.params?.sitterId)
 
   if (!startDate || !endDate || !petId) {
     return res.status(400).json({ status: 'error', message: '缺少必要欄位' })
   }
-
   try {
     // 1️⃣ 寫入預約
     const [result] = await db.query(
-      'INSERT INTO sitter_bookings (user_id, sitter_id, pet_id, start_time, end_time) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO sitter_bookings (member_id, sitter_id, pet_id, start_time, end_time) VALUES (?, ?, ?, ?, ?)',
       [memberId, sitterId, petId, startDate, endDate]
     )
 
@@ -29,7 +31,7 @@ export const createSitterBooking = async (req, res) => {
          sb.start_time AS start_date,
          sb.end_time AS end_date
        FROM sitter_bookings sb
-       JOIN member m ON sb.user_id = m.id
+       JOIN member m ON sb.member_id = m.id
        JOIN dogs d ON sb.pet_id = d.id
        JOIN sitters s ON sb.sitter_id = s.id
        WHERE sb.id = ?`,
