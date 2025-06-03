@@ -196,10 +196,12 @@ model ProductReview {
 }
 
 model ProductFavorite {
-  id         Int     @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   member_id  Int
   product_id Int
-  product    Product @relation(fields: [product_id], references: [id])
+  createdAt  DateTime? @default(now()) @map("created_at")
+
+  product Product @relation(fields: [product_id], references: [id])
 
   @@map("product_favorites")
 }
@@ -320,10 +322,10 @@ model MemberCoupon {
 
 model Point {
   id        Int      @id @default(autoincrement())
-  source    String?  @db.VarChar(255) 
-  amount    Int 
-  createdAt DateTime @default(now()) @map("created_at") 
-  expiresAt DateTime @map("expires_at") 
+  source    String?  @db.VarChar(255)
+  amount    Int
+  createdAt DateTime @default(now()) @map("created_at")
+  expiresAt DateTime @map("expires_at")
   memberId  Int?     @map("member_id")
   member    member?  @relation(fields: [memberId], references: [id])
 
