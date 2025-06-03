@@ -27,14 +27,14 @@ function generateAccessToken(res, member) {
       avatar: member.image_url || member.avatar || '',
     },
     accessTokenSecret,
-    { expiresIn: '3h' }
+    { expiresIn: '24h' }
   )
 
   res.cookie('accessToken', token, {
     httpOnly: true,
     secure: false, // 上線時請改為 true
     sameSite: 'Lax',
-    maxAge: 3 * 60 * 60 * 1000, // 2小時
+    maxAge: 24 * 60 * 60 * 1000, // 24小時
   })
 
   return res.json({
@@ -117,7 +117,7 @@ router.post('/google-login', async (req, res) => {
       member = googleUidMember
     } else if (!googleUidMember && !emailMember) {
       const randomPassword = crypto.randomBytes(10).toString('hex')
-      const username = String(google_uid)
+      const username = String(displayName)
       const [insertResult] = await db.query(
         'INSERT INTO member (username, password, email, google_uid, image_url) VALUES (?, ?, ?, ?, ?)',
         [username, randomPassword, email, google_uid, photoURL]

@@ -193,10 +193,11 @@ model ProductReview {
 }
 
 model ProductFavorite {
-  id         Int     @id @default(autoincrement())
+  id         Int      @id @default(autoincrement())
   member_id  Int
   product_id Int
-  product    Product @relation(fields: [product_id], references: [id])
+  product    Product  @relation(fields: [product_id], references: [id])
+  created_at DateTime @default(now())
 
   @@map("product_favorites")
 }
@@ -276,7 +277,6 @@ model Coupon {
   vipLevel             VipLevel?              @relation(fields: [vipLevelId], references: [id])
   categoryCouponMap    CategoryCouponMap[]
   subcategoryCouponMap SubcategoryCouponMap[]
-  
 
   @@map("coupons")
 }
