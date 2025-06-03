@@ -33,7 +33,7 @@ export const createSitter = async (req, res) => {
 
     // 📷 處理圖片上傳
     const avatar = req.files?.avatar?.[0]?.filename || null
-    const avatar_url = avatar ? `/sitter/${avatar}` : null
+    const avatar_url = avatar ? `/images/${avatar}` : null
     const gallery =
       req.files?.gallery?.map((f) => `/sitter/${f.filename}`) || []
 
@@ -107,7 +107,7 @@ export const updateSitter = async (req, res) => {
     let avatarUrl = oldData.avatar_url
     const avatarFile = req.files?.avatar?.[0]
     if (avatarFile) {
-      avatarUrl = `/sitter/${avatarFile.filename}`
+      avatarUrl = `/images/${avatarFile.filename}`
       // 👉 你可以選擇刪除舊圖（選擇性）
     }
 
