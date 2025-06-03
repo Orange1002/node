@@ -260,6 +260,7 @@ model member {
   // 關聯: User:Product = n:m 透過 Favorite
   favorites       Favorite[]
   product_reviews ProductReview[]
+  Point           Point[]
 }
 
 model Coupon {
@@ -317,6 +318,18 @@ model MemberCoupon {
   @@map("member_coupons")
 }
 
+model Point {
+  id        Int      @id @default(autoincrement())
+  source    String?  @db.VarChar(255) 
+  amount    Int 
+  createdAt DateTime @default(now()) @map("created_at") 
+  expiresAt DateTime @map("expires_at") 
+  memberId  Int?     @map("member_id")
+  member    member?  @relation(fields: [memberId], references: [id])
+
+  @@map("points")
+}
+
 // 需與製作會員的組員討論
 model VipLevel {
   id             Int      @id @default(autoincrement())
@@ -355,11 +368,11 @@ model SubcategoryCouponMap {
 }
 
 model ProductCouponMap {
-  id         Int      @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   couponId  Int?     @map("coupon_id")
   productId Int?     @map("product_id")
-  coupon     Coupon?  @relation(fields: [couponId], references: [id])
-  product    Product? @relation(fields: [productId], references: [id])
+  coupon    Coupon?  @relation(fields: [couponId], references: [id])
+  product   Product? @relation(fields: [productId], references: [id])
 
   @@map("product_coupon_map")
 }
