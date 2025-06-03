@@ -25,7 +25,6 @@ router.get('/', async (req, res) => {
       [memberId]
     )
 
-    console.log(memberId)
     console.log('優惠券資料：', rows)
     res.json(rows)
   } catch (err) {

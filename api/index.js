@@ -218,7 +218,7 @@ for (const filename of topLevelFilenames) {
     const item = await import(pathToFileURL(fullPath))
     const slug = filename.split('.')[0]
     app.use(`${apiPath}/${slug === 'index' ? '' : slug}`, item.default)
-    console.log(`掛載路由: ${apiPath}/${slug === 'index' ? '' : slug}`)
+    // console.log(`掛載路由: ${apiPath}/${slug === 'index' ? '' : slug}`)
   } else if (stats.isDirectory()) {
     const subFilenames = await fs.promises.readdir(fullPath)
     for (const subFilename of subFilenames) {
@@ -231,11 +231,11 @@ for (const filename of topLevelFilenames) {
           `${apiPath}/${filename}/${subSlug === 'index' ? '' : subSlug}`,
           item.default
         )
-        console.log(
-          `掛載路由: ${apiPath}/${filename}/${
-            subSlug === 'index' ? '' : subSlug
-          }`
-        )
+        // console.log(
+        //   `掛載路由: ${apiPath}/${filename}/${
+        //     subSlug === 'index' ? '' : subSlug
+        //   }`
+        // )
       }
     }
   }

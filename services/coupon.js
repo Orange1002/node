@@ -19,17 +19,44 @@ export const getCouponById = async (couponId) => {
   const coupon = await prisma.coupon.findUnique({
     where: { id: couponId },
     include: {
+      usageType: true,
       images: true,
       categoryCouponMap: {
         include: { category: true },
       },
-      subcategoryCouponMap: {
-        include: { subcategory: true },
+    },
+  })
+
+  if (!coupon) throw new Error('優惠券不存在')
+
+  const categoryIds = coupon.categoryCouponMap.map((c) => c.categoryId)
+
+  // 查出所有符合分類的商品
+  const allProducts = await prisma.product.findMany({
+    where: {
+      category_id: {
+        in: categoryIds,
+      },
+    },
+    include: {
+      product_images: {
+        where: { is_primary: true },
+        select: { image: true },
       },
     },
   })
-  if (!coupon) throw new Error('優惠券不存在')
-  return coupon
+
+  // ✅ 原生 JS 隨機抽 4 筆
+  const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5)
+  const relatedProducts = shuffle(allProducts).slice(0, 4)
+
+  return {
+    coupon: {
+      ...coupon,
+      image: coupon.images?.[0]?.image || null,
+    },
+    products: relatedProducts,
+  }
 }
 
 export const claimCoupon = async (memberId, couponId) => {
@@ -198,6 +225,7 @@ export const createCoupon = async (data) => {
       startAt: data.startAt ? new Date(data.startAt) : null,
       endAt: new Date(data.endAt),
       enabled: data.enabled ?? true,
+      usageTypeId: data.usageTypeId ?? null,
     },
   })
 
@@ -242,6 +270,7 @@ export const updateCoupon = async (id, data) => {
       startAt: data.startAt ? new Date(data.startAt) : null,
       endAt: new Date(data.endAt),
       enabled: data.enabled,
+      usageTypeId: data.usageTypeId ?? null,
     },
   })
 

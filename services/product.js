@@ -254,11 +254,18 @@ export const getProductById = async (productId, memberId = null) => {
   const reviews = await prisma.productReview.findMany({
     where: { productId },
     orderBy: { created_at: 'desc' },
-    take: 5, // 可依需求設定顯示幾則
+    take: 5,
     select: {
+      id: true,
       rating: true,
       comment: true,
       created_at: true,
+      memberId: true,
+      member: {
+        select: {
+          username: true,
+        },
+      },
     },
   })
   product.reviews = reviews
@@ -314,6 +321,57 @@ export const getProductById = async (productId, memberId = null) => {
     stock: comb.stock,
     optionIds: comb.options.map((o) => o.optionId),
   }))
+
+  const now = new Date()
+
+  // 查找對應 category 的優惠券
+  const categoryCoupons = await prisma.coupon.findMany({
+    where: {
+      enabled: true,
+      startAt: { lte: now },
+      endAt: { gte: now },
+      categoryCouponMap: {
+        some: {
+          categoryId: product.category_id,
+        },
+      },
+    },
+    select: {
+      id: true,
+      title: true,
+      discountType: true,
+      discountValue: true,
+      minPurchase: true,
+    },
+  })
+
+  // 查找對應 subcategory 的優惠券
+  const subcategoryCoupons = await prisma.coupon.findMany({
+    where: {
+      enabled: true,
+      startAt: { lte: now },
+      endAt: { gte: now },
+      subcategoryCouponMap: {
+        some: {
+          subcategoryId: product.subcategory_id,
+        },
+      },
+    },
+    select: {
+      id: true,
+      title: true,
+      discountType: true,
+      discountValue: true,
+      minPurchase: true,
+    },
+  })
+
+  // 合併兩者，去除重複 coupon id
+  const allCouponsMap = new Map()
+  categoryCoupons.concat(subcategoryCoupons).forEach((coupon) => {
+    allCouponsMap.set(coupon.id, coupon)
+  })
+  product.coupons = Array.from(allCouponsMap.values())
 
   return product
 }
