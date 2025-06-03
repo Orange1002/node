@@ -18,6 +18,7 @@ export const createOrder = async (req, res) => {
       storeAddress,
       paymentMethod,
       totalAmount,
+      couponId,
       orderItems,
       orderServices,
     } = req.body
@@ -45,8 +46,8 @@ export const createOrder = async (req, res) => {
         delivery_method, city, town, address,
         store_name, store_address,
         order_payment_id, total_amount,
-        order_status_id, created_at
-      ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1', NOW())`,
+        coupon_id, order_status_id, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1', NOW())`,
       [
         memberId,
         recipientName,
@@ -60,10 +61,33 @@ export const createOrder = async (req, res) => {
         storeAddress,
         paymentMethod,
         totalAmount,
+        couponId,
       ]
     )
 
     const orderId = orderResult.insertId
+
+    // 2. 從資料庫取訂單的 created_at 日期（'yyyy-mm-dd'）
+    const [rows] = await db.execute(
+      `SELECT DATE(created_at) as created_date FROM orders WHERE id = ?`,
+      [orderId]
+    )
+
+    const createdDate = rows[0].created_date // '2025-05-31'
+
+    const dateString = createdDate.replace(/-/g, '') // '20250531'
+
+    const orderIdString = orderId.toString().padStart(3, '0')
+
+    const orderNumber = `${dateString}${orderIdString}`
+
+    // 更新訂單號碼
+    await db.execute(`UPDATE orders SET order_number = ? WHERE id = ?`, [
+      orderNumber,
+      orderId,
+    ])
+
+    console.log('訂單建立完成，訂單號碼:', orderNumber)
 
     // 新增 order_items
     for (const item of orderItems) {
@@ -111,6 +135,14 @@ export const createOrder = async (req, res) => {
           service.end_time,
           service.price,
         ]
+      )
+    }
+
+    // 刪除對應的優惠卷
+    if (couponId !== 0) {
+      await db.query(
+        `DELETE FROM member_coupons WHERE member_id = ? AND coupon_id = ?`,
+        [memberId, couponId]
       )
     }
 

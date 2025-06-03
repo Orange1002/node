@@ -4,6 +4,7 @@ import {
   getAvailableCoupons,
   getUsedCoupons,
   getClaimableCoupons,
+  claimCoupon,
 } from '../../services/coupon.js'
 import { successResponse, errorResponse } from '../../lib/utils.js'
 
@@ -44,6 +45,17 @@ router.get('/:memberId/coupons/claimable', async (req, res) => {
     const memberId = Number(req.params.memberId)
     const result = await getClaimableCoupons(memberId)
     successResponse(res, { coupons: result })
+  } catch (error) {
+    errorResponse(res, error)
+  }
+})
+
+router.post('/:memberId/claim/:couponId', async (req, res) => {
+  try {
+    const memberId = Number(req.params.memberId)
+    const couponId = Number(req.params.couponId)
+    const result = await claimCoupon(memberId, couponId)
+    successResponse(res, { result })
   } catch (error) {
     errorResponse(res, error)
   }
