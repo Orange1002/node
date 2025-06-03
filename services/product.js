@@ -327,3 +327,4 @@ export const getBrands = async () => {
 export const getCategories = async () => {
   return await prisma.productCategory.findMany()
 }
+
