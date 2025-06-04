@@ -200,6 +200,10 @@ router.post(
           category_id: Number(category_id),
           subcategory_id: Number(subcategory_id) || null,
           valid: true,
+          is_active: req.body.is_active === 'true',
+          start_at: new Date(req.body.start_at),
+          end_at: new Date(req.body.end_at),
+          notice: req.body.notice,
         },
       })
 
@@ -223,6 +227,19 @@ router.post(
           }
         })
       )
+
+      const specifications = JSON.parse(req.body.specifications || '[]')
+
+      if (specifications.length > 0) {
+        await prisma.productSpecification.createMany({
+          data: specifications.map((spec, i) => ({
+            productId: newProduct.id,
+            title: spec.title,
+            value: spec.content,
+            sort_order: i + 1,
+          })),
+        })
+      }
 
       await prisma.productImage.createMany({
         data: imageData.map((img) => ({
@@ -267,4 +284,219 @@ router.post(
     }
   }
 )
+
+// 刪除商品
+router.delete('/:productId', tryAuth, async (req, res) => {
+  const productId = Number(req.params.productId)
+  if (isNaN(productId)) return res.status(400).json({ error: '無效的商品 ID' })
+
+  try {
+    // ⚠️ 依照你資料表設計，也許需要先刪除關聯資料
+    await prisma.productVariantCombinationOption.deleteMany({
+      where: {
+        combination: {
+          productId,
+        },
+      },
+    })
+    await prisma.productVariantCombination.deleteMany({
+      where: { productId },
+    })
+
+    await prisma.productSpecification.deleteMany({
+      where: { productId },
+    })
+
+    await prisma.productImage.deleteMany({
+      where: { productId },
+    })
+
+    await prisma.productFavorite.deleteMany({
+      where: { product_id: productId },
+    })
+
+    await prisma.productReview.deleteMany({
+      where: { productId },
+    })
+
+    await prisma.productTagMap.deleteMany({
+      where: { productId },
+    })
+
+    const result = await prisma.product.delete({
+      where: { id: productId },
+    })
+
+    res.json({ success: true, deleted: result })
+  } catch (error) {
+    console.error('刪除商品失敗', error)
+    res.status(500).json({ error: '刪除商品失敗' })
+  }
+})
+
+// 修改商品上下架狀態（valid）
+router.patch('/:id/status', tryAuth, async (req, res) => {
+  const id = Number(req.params.id)
+  const { valid } = req.body
+
+  if (typeof valid !== 'boolean') {
+    return res.status(400).json({ error: 'valid 必須是 boolean' })
+  }
+
+  try {
+    const updated = await prisma.product.update({
+      where: { id },
+      data: {
+        valid,
+        updated_at: new Date(),
+      },
+    })
+    res.json({ success: true, updated })
+  } catch (err) {
+    console.error('上下架更新失敗', err)
+    res.status(500).json({ error: '無法更新商品狀態' })
+  }
+})
+
+// 編輯商品
+router.patch(
+  '/:id',
+  (req, res, next) => {
+    upload.array('images', 6)(req, res, function (err) {
+      if (err instanceof multer.MulterError || err) {
+        return res.status(400).json({ error: err.message || '上傳圖片錯誤' })
+      }
+      next()
+    })
+  },
+  tryAuth,
+  async (req, res) => {
+    const id = Number(req.params.id)
+
+    try {
+      const {
+        name,
+        description,
+        price,
+        brand_id,
+        category_id,
+        subcategory_id,
+        start_at,
+        end_at,
+        notice,
+        is_active,
+        valid,
+        variants,
+        specifications,
+      } = req.body
+
+      // 1️⃣ 更新商品主資料
+      const updated = await prisma.product.update({
+        where: { id },
+        data: {
+          name,
+          description,
+          price: Number(price),
+          brand_id: Number(brand_id),
+          category_id: Number(category_id),
+          subcategory_id: Number(subcategory_id) || null,
+          start_at: new Date(start_at),
+          end_at: new Date(end_at),
+          notice,
+          is_active: is_active === 'true',
+          valid: valid === 'true',
+          updated_at: new Date(),
+        },
+      })
+
+      // 2️⃣ 更新圖片
+      const imageFiles = req.files
+      if (imageFiles && imageFiles.length > 0) {
+        await prisma.productImage.deleteMany({ where: { productId: id } })
+
+        const sn = `PRD${String(id).padStart(4, '0')}`
+        const imageData = await Promise.all(
+          imageFiles.map(async (file, index) => {
+            const ext = path.extname(file.originalname)
+            const newFilename = `product${id}-${index + 1}${ext}`
+            const newPath = path.join(file.destination, newFilename)
+            await fs.rename(file.path, newPath)
+
+            return {
+              image: `/uploads/${newFilename}`,
+              is_primary: index === 0,
+            }
+          })
+        )
+
+        await prisma.productImage.createMany({
+          data: imageData.map((img) => ({
+            ...img,
+            productId: id,
+          })),
+        })
+      }
+
+      // 3️⃣ 更新商品規格（specifications）
+      if (specifications) {
+        const parsedSpecs = JSON.parse(specifications)
+        await prisma.productSpecification.deleteMany({
+          where: { productId: id },
+        })
+        if (parsedSpecs.length > 0) {
+          await prisma.productSpecification.createMany({
+            data: parsedSpecs.map((spec, i) => ({
+              productId: id,
+              title: spec.title,
+              value: spec.content,
+              sort_order: i + 1,
+            })),
+          })
+        }
+      }
+
+      // 4️⃣ 更新變體（variants）
+      if (variants) {
+        const parsedVariants = JSON.parse(variants)
+
+        // 刪除原本所有組合與選項
+        await prisma.productVariantCombinationOption.deleteMany({
+          where: {
+            combination: { productId: id },
+          },
+        })
+        await prisma.productVariantCombination.deleteMany({
+          where: { productId: id },
+        })
+
+        // 重新建立新組合
+        const sn = `PRD${String(id).padStart(4, '0')}`
+        for (let i = 0; i < parsedVariants.length; i++) {
+          const v = parsedVariants[i]
+          const combination = await prisma.productVariantCombination.create({
+            data: {
+              productId: id,
+              sku: `${sn}-${i + 1}`,
+              price: Number(v.price) || 0,
+              stock: Number(v.stock),
+            },
+          })
+
+          await prisma.productVariantCombinationOption.createMany({
+            data: Object.values(v.optionIds).map((optionId) => ({
+              combinationId: combination.id,
+              optionId,
+            })),
+          })
+        }
+      }
+
+      res.json({ success: true, updated })
+    } catch (err) {
+      console.error('商品更新失敗', err)
+      res.status(500).json({ error: '商品更新失敗' })
+    }
+  }
+)
+
 export default router

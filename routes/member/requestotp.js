@@ -1,7 +1,7 @@
 import express from 'express'
 import db from '../../config/mysql.js'
 import { sendOtpMail } from '../../lib/mail.js'
-import crypto from 'crypto' // 確認有 import crypto
+import crypto from 'crypto'
 
 const router = express.Router()
 

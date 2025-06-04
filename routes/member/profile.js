@@ -70,7 +70,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const memberId = req.member.id
     const [rows] = await db.query(
-      `SELECT id, username, email, image_url, vip_levels_id, birth_date, gender, phone, address, realname FROM member WHERE id = ?`,
+      `SELECT id, username, email, image_url, vip_levels_id, birth_date, gender, phone, city, zip, address, realname FROM member WHERE id = ?`,
       [memberId]
     )
 
@@ -114,6 +114,8 @@ router.put('/edit', authenticate, (req, res) => {
         username = '',
         birth_date,
         gender = '',
+        city = '',
+        zip = '',
         phone = '',
         address = '',
         realname = '',
@@ -125,15 +127,18 @@ router.put('/edit', authenticate, (req, res) => {
       let image_url = null
 
       if (file) {
+        // 有上傳新頭貼
         image_url = path.posix.join('/member/member_images', file.filename)
       } else if (removeAvatar) {
+        // 前端要求移除頭貼
         image_url = '/member/member_images/user-img.svg'
       }
 
       if (image_url !== null) {
+        // 更新包含圖片欄位
         await db.query(
           `UPDATE member 
-           SET username = ?, birth_date = ?, gender = ?, phone = ?, address = ?, realname = ?,
+           SET username = ?, birth_date = ?, gender = ?, phone = ?, city = ?, zip = ?, address = ?, realname = ?,
                image_url = ?, image_updated_at = NOW()
            WHERE id = ?`,
           [
@@ -141,6 +146,8 @@ router.put('/edit', authenticate, (req, res) => {
             birth_date,
             gender,
             phone,
+            city,
+            zip,
             address,
             realname,
             image_url,
@@ -149,13 +156,23 @@ router.put('/edit', authenticate, (req, res) => {
         )
         return successResponse(res, { image_url })
       } else {
+        // 沒有變更頭像
         await db.query(
           `UPDATE member 
-           SET username = ?, birth_date = ?, gender = ?, phone = ?, address = ?, realname = ?
+           SET username = ?, birth_date = ?, gender = ?, phone = ?, city = ?, zip = ?, address = ?, realname = ?
            WHERE id = ?`,
-          [username, birth_date, gender, phone, address, realname, memberId]
+          [
+            username,
+            birth_date,
+            gender,
+            phone,
+            city,
+            zip,
+            address,
+            realname,
+            memberId,
+          ]
         )
-
         return successResponse(res, {})
       }
     } catch (error) {
