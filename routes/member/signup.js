@@ -227,8 +227,8 @@ router.post('/verify-otp', async (req, res) => {
         .json({ status: 'error', message: '驗證碼錯誤或已過期' })
     }
 
-    // OTP 驗證成功後，更新 members 表的 email_validated
-    await db.query('UPDATE members SET email_validated = 1 WHERE email = ?', [
+    // OTP 驗證成功後，更新 member 表的 email_validated
+    await db.query('UPDATE member SET email_validated = 1 WHERE email = ?', [
       email,
     ])
 
