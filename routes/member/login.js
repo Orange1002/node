@@ -19,7 +19,7 @@ const accessTokenSecret = process.env.JWT_SECRET
 const router = express.Router()
 
 // 產生並發送 accessToken 的共用函式
-function generateAccessToken(res, member) {
+function generateAccessToken(res, member, isNew = false) {
   const token = jwt.sign(
     {
       id: member.id,
@@ -47,6 +47,7 @@ function generateAccessToken(res, member) {
       image_url: member.image_url || member.avatar || '',
       vip_levels_id: member.vip_levels_id || null,
     },
+    isNew, // 回傳新用戶狀態
   })
 }
 
@@ -88,6 +89,7 @@ router.post('/google-login', async (req, res) => {
   }
 
   const google_uid = uid
+  let isNew = false // <-- 加入 isNew 標記
 
   try {
     const [emailRows] = await db.query('SELECT * FROM member WHERE email = ?', [
@@ -104,22 +106,29 @@ router.post('/google-login', async (req, res) => {
     let member = null
 
     if (!googleUidMember && emailMember) {
-      await db.query('UPDATE member SET google_uid = ? WHERE email = ?', [
-        google_uid,
-        email,
-      ])
+      // 綁定 google_uid 並設 email_validated
+      await db.query(
+        'UPDATE member SET google_uid = ?, email_validated = 1 WHERE email = ?',
+        [google_uid, email]
+      )
       const [updatedRows] = await db.query(
         'SELECT * FROM member WHERE email = ?',
         [email]
       )
       member = updatedRows[0]
     } else if (googleUidMember && emailMember) {
+      // 確保 email_validated 是 1
+      await db.query('UPDATE member SET email_validated = 1 WHERE id = ?', [
+        googleUidMember.id,
+      ])
       member = googleUidMember
     } else if (!googleUidMember && !emailMember) {
+      // 新會員
+      isNew = true
       const randomPassword = crypto.randomBytes(10).toString('hex')
       const username = String(displayName)
       const [insertResult] = await db.query(
-        'INSERT INTO member (username, password, email, google_uid, image_url) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO member (username, password, email, google_uid, image_url, email_validated) VALUES (?, ?, ?, ?, ?, 1)',
         [username, randomPassword, email, google_uid, photoURL]
       )
       const [newMemberRows] = await db.query(
@@ -135,7 +144,8 @@ router.post('/google-login', async (req, res) => {
 
     if (isDev) console.log('登入會員資料:', member)
 
-    return generateAccessToken(res, member)
+    // 傳遞 isNew 給前端
+    return generateAccessToken(res, member, isNew)
   } catch (err) {
     console.error(err)
     return errorResponse(res, { message: '伺服器錯誤' }, 500)
