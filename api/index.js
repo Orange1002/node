@@ -88,7 +88,7 @@ io.on('connection', (socket) => {
 
   socket.emit('chat message', {
     id: 'system-welcome', // 系統訊息的 ID
-    user: 'System', // 系統用戶
+    user: '您好', // 系統用戶
     text: `歡迎 ${socket.member?.name || '新朋友'} 加入聊天室！`, // 使用 ?. 確保安全訪問
     createdAt: new Date().toISOString(), // 系統訊息不需要 userId，或者可以給一個特定的系統 userId
     userId: 'system',

@@ -6,6 +6,7 @@ import path from 'path'
 import fs from 'fs'
 import { successResponse, errorResponse, isDev } from '../../lib/utils.js'
 import { updateMemberPasswordById } from '../../services/member.js'
+import { body, validationResult } from 'express-validator'
 
 const router = express.Router()
 
@@ -44,12 +45,32 @@ const upload = multer({
   },
 })
 
+// 密碼修改驗證
+const validatePasswordUpdate = [
+  body('currentPassword')
+    .notEmpty()
+    .withMessage('請輸入目前密碼')
+    .isLength({ min: 6 })
+    .withMessage('目前密碼長度至少需為 6 字元'),
+  body('newPassword')
+    .notEmpty()
+    .withMessage('請輸入新密碼')
+    .isLength({ min: 6 })
+    .withMessage('新密碼長度至少需為 6 字元')
+    .custom((value, { req }) => {
+      if (value === req.body.currentPassword) {
+        throw new Error('新密碼不能與舊密碼相同')
+      }
+      return true
+    }),
+]
+
 // 取得會員資料
 router.get('/', authenticate, async (req, res) => {
   try {
     const memberId = req.member.id
     const [rows] = await db.query(
-      `SELECT id, username, email, image_url, vip_levels_id, birth_date, gender, phone FROM member WHERE id = ?`,
+      `SELECT id, username, email, image_url, vip_levels_id, birth_date, gender, phone, address, realname FROM member WHERE id = ?`,
       [memberId]
     )
 
@@ -89,43 +110,53 @@ router.put('/edit', authenticate, (req, res) => {
     }
 
     try {
-      let { username = '', birth_date, gender = '', phone = '' } = updatedMember
-
+      let {
+        username = '',
+        birth_date,
+        gender = '',
+        phone = '',
+        address = '',
+        realname = '',
+      } = updatedMember
       if (birth_date === '') {
         birth_date = null
       }
 
-      let image_url = null // 預設不更新圖片
+      let image_url = null
 
       if (file) {
-        // 有上傳新頭貼
         image_url = path.posix.join('/member/member_images', file.filename)
       } else if (removeAvatar) {
-        // 前端要求移除頭貼，改為預設圖片路徑
         image_url = '/member/member_images/user-img.svg'
       }
 
       if (image_url !== null) {
-        // 更新包含圖片路徑及更新時間
         await db.query(
           `UPDATE member 
-           SET username = ?, birth_date = ?, gender = ?, phone = ?, 
+           SET username = ?, birth_date = ?, gender = ?, phone = ?, address = ?, realname = ?,
                image_url = ?, image_updated_at = NOW()
            WHERE id = ?`,
-          [username, birth_date, gender, phone, image_url, memberId]
+          [
+            username,
+            birth_date,
+            gender,
+            phone,
+            address,
+            realname,
+            image_url,
+            memberId,
+          ]
         )
-
         return successResponse(res, { image_url })
       } else {
-        // 沒有更新圖片
         await db.query(
           `UPDATE member 
-           SET username = ?, birth_date = ?, gender = ?, phone = ?
+           SET username = ?, birth_date = ?, gender = ?, phone = ?, address = ?, realname = ?
            WHERE id = ?`,
-          [username, birth_date, gender, phone, memberId]
+          [username, birth_date, gender, phone, address, realname, memberId]
         )
 
-        return successResponse(res, {}) // 沒更新圖片就不回傳 image_url
+        return successResponse(res, {})
       }
     } catch (error) {
       console.error(error)
@@ -135,23 +166,29 @@ router.put('/edit', authenticate, (req, res) => {
 })
 
 // 更新會員密碼
-router.put('/:memberId/password', upload.none(), async (req, res) => {
-  // 取得請求的資料
-  // 格式: { currentPassword: '舊密碼', newPassword: '新密碼' }
-  const updatedPassword = req.body
-  // 取得使用者id，從req.params.memberId取得，並轉換成數字
-  const memberId = Number(req.params.memberId)
-  // 如果是開發環境，顯示訊息
-  if (isDev)
-    console.log('memberId', memberId, 'updatedPassword', updatedPassword)
+router.put(
+  '/:memberId/password',
+  upload.none(),
+  validatePasswordUpdate,
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg })
+    }
 
-  try {
-    await updateMemberPasswordById(memberId, updatedPassword)
-    // 成功更新會員的回應
-    successResponse(res)
-  } catch (error) {
-    errorResponse(res, error)
+    const updatedPassword = req.body
+    const memberId = Number(req.params.memberId)
+
+    if (isDev)
+      console.log('memberId', memberId, 'updatedPassword', updatedPassword)
+
+    try {
+      await updateMemberPasswordById(memberId, updatedPassword)
+      successResponse(res)
+    } catch (error) {
+      errorResponse(res, error)
+    }
   }
-})
+)
 
 export default router
