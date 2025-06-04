@@ -153,6 +153,7 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: false }))
 app.use(cookieParser())
 app.use(express.static(path.join(process.cwd(), 'public')))
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
 
 // Session Store 設定
 let sessionStore = null
