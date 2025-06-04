@@ -70,7 +70,7 @@ router.get('/', authenticate, async (req, res) => {
   try {
     const memberId = req.member.id
     const [rows] = await db.query(
-      `SELECT id, username, email, image_url, vip_levels_id, birth_date, gender, phone, address, realname FROM member WHERE id = ?`,
+      `SELECT id, username, email, image_url, vip_levels_id, birth_date, gender, phone, city, zip, address, realname FROM member WHERE id = ?`,
       [memberId]
     )
 
@@ -114,6 +114,8 @@ router.put('/edit', authenticate, (req, res) => {
         username = '',
         birth_date,
         gender = '',
+        city = '',
+        zip = '',
         phone = '',
         address = '',
         realname = '',
@@ -133,17 +135,17 @@ router.put('/edit', authenticate, (req, res) => {
       if (image_url !== null) {
         await db.query(
           `UPDATE member 
-           SET username = ?, birth_date = ?, gender = ?, phone = ?, address = ?, realname = ?,
-               image_url = ?, image_updated_at = NOW()
+           SET username = ?, birth_date = ?, gender = ?, phone = ?, city = ?, zip = ?, address = ?, realname = ?
            WHERE id = ?`,
           [
             username,
             birth_date,
             gender,
             phone,
+            city,
+            zip,
             address,
             realname,
-            image_url,
             memberId,
           ]
         )
@@ -151,9 +153,19 @@ router.put('/edit', authenticate, (req, res) => {
       } else {
         await db.query(
           `UPDATE member 
-           SET username = ?, birth_date = ?, gender = ?, phone = ?, address = ?, realname = ?
+           SET username = ?, birth_date = ?, gender = ?, phone = ?, city = ?, zip = ?, address = ?, realname = ?
            WHERE id = ?`,
-          [username, birth_date, gender, phone, address, realname, memberId]
+          [
+            username,
+            birth_date,
+            gender,
+            phone,
+            city,
+            zip,
+            address,
+            realname,
+            memberId,
+          ]
         )
 
         return successResponse(res, {})
