@@ -18,7 +18,7 @@ router.get('/reviews', async (req, res) => {
     const [rows] = await db.query(`
       SELECT 
         r.rating, r.comment, r.created_at,
-        m.username, NULL AS avatar
+        m.username, m.image_url
       FROM reviews r
       JOIN member m ON r.member_id = m.id
       ORDER BY r.created_at DESC

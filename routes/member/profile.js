@@ -127,15 +127,19 @@ router.put('/edit', authenticate, (req, res) => {
       let image_url = null
 
       if (file) {
+        // 有上傳新頭貼
         image_url = path.posix.join('/member/member_images', file.filename)
       } else if (removeAvatar) {
+        // 前端要求移除頭貼
         image_url = '/member/member_images/user-img.svg'
       }
 
       if (image_url !== null) {
+        // 更新包含圖片欄位
         await db.query(
           `UPDATE member 
-           SET username = ?, birth_date = ?, gender = ?, phone = ?, city = ?, zip = ?, address = ?, realname = ?
+           SET username = ?, birth_date = ?, gender = ?, phone = ?, city = ?, zip = ?, address = ?, realname = ?,
+               image_url = ?, image_updated_at = NOW()
            WHERE id = ?`,
           [
             username,
@@ -146,11 +150,13 @@ router.put('/edit', authenticate, (req, res) => {
             zip,
             address,
             realname,
+            image_url,
             memberId,
           ]
         )
         return successResponse(res, { image_url })
       } else {
+        // 沒有變更頭像
         await db.query(
           `UPDATE member 
            SET username = ?, birth_date = ?, gender = ?, phone = ?, city = ?, zip = ?, address = ?, realname = ?
@@ -167,7 +173,6 @@ router.put('/edit', authenticate, (req, res) => {
             memberId,
           ]
         )
-
         return successResponse(res, {})
       }
     } catch (error) {
