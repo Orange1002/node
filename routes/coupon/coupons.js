@@ -30,8 +30,9 @@ router.get('/', tryAuth, async (req, res) => {
 router.get('/:id', tryAuth, async (req, res) => {
   try {
     const couponId = Number(req.params.id)
-    const coupon = await getCouponById(couponId)
-    successResponse(res, { coupon })
+    const memberId = req.member?.id || null
+    const { coupon, products } = await getCouponById(couponId, memberId)
+    successResponse(res, { coupon, products })
   } catch (error) {
     errorResponse(res, error)
   }
