@@ -141,11 +141,10 @@ export const createOrder = async (req, res) => {
     // 刪除對應的優惠卷
     if (couponId !== 0) {
       await db.query(
-        `DELETE FROM member_coupons WHERE member_id = ? AND coupon_id = ?`,
+        `UPDATE member_coupons SET used_at = NOW() WHERE member_id = ? AND coupon_id = ?`,
         [memberId, couponId]
       )
     }
-
     return res.status(201).json({
       success: true,
       message: '訂單建立成功',
