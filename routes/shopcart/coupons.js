@@ -26,7 +26,9 @@ router.get('/', async (req, res) => {
        LEFT JOIN coupon_images ci ON c.id = ci.coupon_id
        LEFT JOIN coupon_usage_types cut ON c.usage_type_id = cut.id
        LEFT JOIN category_coupon_map ccm ON c.id = ccm.coupon_id
-       WHERE mc.member_id = ? AND c.enabled = 1`,
+       WHERE mc.member_id = ? 
+         AND mc.used_at IS NULL
+         AND c.enabled = 1`,
       [memberId]
     )
 

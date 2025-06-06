@@ -15,7 +15,7 @@ export const getCoupons = async () => {
   })
 }
 
-export const getCouponById = async (couponId) => {
+export const getCouponById = async (couponId, memberId = null) => {
   const coupon = await prisma.coupon.findUnique({
     where: { id: couponId },
     include: {
@@ -28,6 +28,18 @@ export const getCouponById = async (couponId) => {
   })
 
   if (!coupon) throw new Error('優惠券不存在')
+
+  // ✅ 查詢會員是否已領取
+  let isClaimed = false
+  if (memberId) {
+    const claim = await prisma.memberCoupon.findFirst({
+      where: {
+        memberId,
+        couponId,
+      },
+    })
+    isClaimed = !!claim
+  }
 
   const categoryIds = coupon.categoryCouponMap.map((c) => c.categoryId)
 
@@ -54,6 +66,8 @@ export const getCouponById = async (couponId) => {
     coupon: {
       ...coupon,
       image: coupon.images?.[0]?.image || null,
+      usageTypeId: coupon.usageTypeId,
+      isClaimed,
     },
     products: relatedProducts,
   }

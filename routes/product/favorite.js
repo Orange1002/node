@@ -48,7 +48,7 @@ router.get('/', authenticate, async (req, res) => {
     const favorites = await prisma.productFavorite.findMany({
       where: { member_id: memberId },
       orderBy: {
-        created_at: 'desc',
+        createdAt: 'desc',
       },
       include: {
         product: {

@@ -32,7 +32,7 @@ router.post('/', async (req, res) => {
   await sendOtpMail(email, otpToken, secret)
 
   // 一定要把 secret 回傳給前端
-  return res.json({ message: '驗證碼已寄出', secret })
+  return res.json({ message: '驗證碼已寄出，請於5分鐘內進行驗證', secret })
 })
 
 export default router
