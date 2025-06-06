@@ -8,7 +8,7 @@ router.get('/:id', async (req, res) => {
 
   try {
     const [rows] = await db.execute(
-      `SELECT id, city, zip, address
+      `SELECT id, city, zip, address, realname, email, 	phone
        FROM member
        WHERE id = ?`,
       [memberId]
