@@ -186,11 +186,17 @@ export const getAvailableCoupons = async (memberId) => {
     },
   })
 
-  return results.map((entry) => ({
-    ...entry.coupon,
-    image: entry.coupon.images?.[0]?.image || null,
-    status: computeCouponStatus(entry.coupon, entry.usedAt),
-  }))
+  return results.map((entry) => {
+    const categoryId = entry.coupon.categoryCouponMap?.[0]?.categoryId || null
+
+    return {
+      ...entry.coupon,
+      image: entry.coupon.images?.[0]?.image || null,
+      status: computeCouponStatus(entry.coupon, entry.usedAt),
+      categoryId, 
+      usageTypeId: entry.coupon.usageTypeId, 
+    }
+  })
 }
 
 export const getUsedCoupons = async (memberId) => {

@@ -33,9 +33,13 @@ router.get('/', tryAuth, async (req, res) => {
   const brandIds = req.query.brand_ids
     ? req.query.brand_ids.split(',').map(Number)
     : []
-  const categoryIds = req.query.category_ids
-    ? req.query.category_ids.split(',').map(Number)
-    : []
+  let categoryIds = []
+
+  if (req.query.category_ids) {
+    categoryIds = req.query.category_ids.split(',').map(Number)
+  } else if (req.query.categoryId) {
+    categoryIds = [Number(req.query.categoryId)]
+  }
 
   const subcategoryIds = req.query.subcategory_ids
     ? req.query.subcategory_ids.split(',').map(Number)
