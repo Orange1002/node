@@ -41,26 +41,29 @@ export const getCouponById = async (couponId, memberId = null) => {
     isClaimed = !!claim
   }
 
-  const categoryIds = coupon.categoryCouponMap.map((c) => c.categoryId)
+  // ✅ 根據 usageTypeId 判斷是否查詢相關商品
+  let relatedProducts = []
 
-  // 查出所有符合分類的商品
-  const allProducts = await prisma.product.findMany({
-    where: {
-      category_id: {
-        in: categoryIds,
-      },
-    },
-    include: {
-      product_images: {
-        where: { is_primary: true },
-        select: { image: true },
-      },
-    },
-  })
+  if (coupon.usageTypeId === 1) {
+    const categoryIds = coupon.categoryCouponMap.map((c) => c.categoryId)
 
-  // ✅ 原生 JS 隨機抽 4 筆
-  const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5)
-  const relatedProducts = shuffle(allProducts).slice(0, 4)
+    const allProducts = await prisma.product.findMany({
+      where: {
+        category_id: {
+          in: categoryIds,
+        },
+      },
+      include: {
+        product_images: {
+          where: { is_primary: true },
+          select: { image: true },
+        },
+      },
+    })
+
+    const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5)
+    relatedProducts = shuffle(allProducts).slice(0, 4)
+  }
 
   return {
     coupon: {
@@ -193,8 +196,8 @@ export const getAvailableCoupons = async (memberId) => {
       ...entry.coupon,
       image: entry.coupon.images?.[0]?.image || null,
       status: computeCouponStatus(entry.coupon, entry.usedAt),
-      categoryId, 
-      usageTypeId: entry.coupon.usageTypeId, 
+      categoryId,
+      usageTypeId: entry.coupon.usageTypeId,
     }
   })
 }
