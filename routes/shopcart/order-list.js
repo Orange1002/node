@@ -23,7 +23,7 @@ router.post('/', async (req, res) => {
       LEFT JOIN order_payment op ON o.order_payment_id = op.id
       LEFT JOIN order_status os ON o.order_status_id = os.id
       WHERE o.member_id = ?
-      ORDER BY o.created_at DESC
+      ORDER BY o.order_number DESC
       `,
       [memberId]
     )
