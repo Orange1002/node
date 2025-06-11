@@ -7,6 +7,7 @@ import fs from 'fs'
 import { successResponse, errorResponse, isDev } from '../../lib/utils.js'
 import { updateMemberPasswordById } from '../../services/member.js'
 import { body, validationResult } from 'express-validator'
+import bcrypt from 'bcrypt'
 
 const router = express.Router()
 
@@ -45,13 +46,13 @@ const upload = multer({
   },
 })
 
-// 密碼修改驗證
 const validatePasswordUpdate = [
   body('currentPassword')
     .notEmpty()
     .withMessage('請輸入目前密碼')
     .isLength({ min: 6 })
     .withMessage('目前密碼長度至少需為 6 字元'),
+
   body('newPassword')
     .notEmpty()
     .withMessage('請輸入新密碼')
@@ -64,6 +65,67 @@ const validatePasswordUpdate = [
       return true
     }),
 ]
+
+// 密碼修改驗證
+router.put(
+  '/:memberId/password',
+  upload.none(),
+  validatePasswordUpdate,
+  async (req, res) => {
+    const errors = validationResult(req)
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg })
+    }
+
+    const { currentPassword, newPassword } = req.body
+    const memberId = Number(req.params.memberId)
+
+    if (isDev) {
+      console.log(
+        'memberId',
+        memberId,
+        'currentPassword',
+        currentPassword,
+        'newPassword',
+        newPassword
+      )
+    }
+
+    try {
+      // 取得目前會員密碼
+      const [rows] = await db.query(
+        'SELECT password FROM member WHERE id = ?',
+        [memberId]
+      )
+
+      if (rows.length === 0) {
+        return res.status(404).json({ message: '找不到會員' })
+      }
+
+      const hashedPassword = rows[0].password
+
+      // 比對目前密碼是否正確
+      const isMatch = await bcrypt.compare(currentPassword, hashedPassword)
+      if (!isMatch) {
+        return res.status(400).json({ message: '目前密碼錯誤' })
+      }
+
+      // 將新密碼加密
+      const newHashedPassword = await bcrypt.hash(newPassword, 10)
+
+      // 更新密碼
+      await db.query(
+        'UPDATE member SET password = ?, updated_at = NOW() WHERE id = ?',
+        [newHashedPassword, memberId]
+      )
+
+      successResponse(res)
+    } catch (error) {
+      console.error(error)
+      errorResponse(res, error)
+    }
+  }
+)
 
 // 取得會員資料
 router.get('/', authenticate, async (req, res) => {
